@@ -550,7 +550,8 @@ describe("skirmishes and hearths", () => {
     state.log = [];
     for (let i = 0; i < LOG_LIMIT + 5; i++) pushLog(state, "log.levy", { kingdom: "ashvale" });
     expect(state.log).toHaveLength(LOG_LIMIT);
-    expect(LOG_LIMIT).toBeGreaterThan(7);
+    expect(state.log[0]?.key).toBe("log.levy");
+    expect(LOG_LIMIT).toBeGreaterThanOrEqual(400);
     expect(state.log[0]?.day).toBe(state.day);
   });
 

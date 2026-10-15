@@ -43,8 +43,11 @@ export const MAX_UNITS = 8;
 /** Share of the loser's strength (or the attacker's, if they lose) dealt to the winner. */
 export const COMBAT_RATIO = 0.65;
 
-/** Lines kept in the field log. The panel scrolls, so a sitting can be reread. */
-export const LOG_LIMIT = 160;
+/**
+ * Lines kept in the field log. A sitting writes a few hundred notes, and
+ * the panel scrolls, so the opening rites stay readable at the end.
+ */
+export const LOG_LIMIT = 640;
 
 export const SLICE_MS = 100;
 
