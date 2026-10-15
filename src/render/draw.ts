@@ -491,6 +491,7 @@ class GroundCache {
   readonly mapH: number;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly stamp: Uint16Array;
+  generation = 0;
 
   constructor(mapW: number, mapH: number) {
     const world = worldSize(mapW, mapH);
@@ -545,6 +546,7 @@ class GroundCache {
     this.ctx.lineJoin = "round";
     this.ctx.lineCap = "round";
     for (const index of paint) paintStaticTile(this.ctx, state, state.tiles[index]!);
+    this.generation += 1;
     return paint.size;
   }
 
@@ -559,13 +561,20 @@ export function resetViewCache(): void {
   cache = null;
 }
 
-export function viewSurfaces(): { paper: HTMLCanvasElement; ground: HTMLCanvasElement; worldWidth: number; worldHeight: number } | null {
+export function viewSurfaces(): {
+  paper: HTMLCanvasElement;
+  ground: HTMLCanvasElement;
+  worldWidth: number;
+  worldHeight: number;
+  generation: number;
+} | null {
   if (!cache) return null;
   return {
     paper: cache.paper,
     ground: cache.ground,
     worldWidth: cache.worldWidth,
     worldHeight: cache.worldHeight,
+    generation: cache.generation,
   };
 }
 

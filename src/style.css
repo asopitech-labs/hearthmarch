@@ -514,6 +514,16 @@ input[type="range"]::-moz-range-thumb {
     height: 78px;
   }
 
+  .zoom-tools {
+    flex-direction: row;
+  }
+
+  .zoom-tools button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px 8px;
+  }
+
   h1 {
     font-size: 3rem;
   }

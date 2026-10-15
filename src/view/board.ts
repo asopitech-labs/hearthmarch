@@ -78,6 +78,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     onChooseGod(godId: GodId) {
       state = createSkirmish({ humanGod: godId });
       resetViewCache();
+      minimapStamp = -1;
       choosingGod = false;
       armedPower = null;
       paused = false;
@@ -124,7 +125,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     width: LAYOUT.width,
     height: LAYOUT.height,
     cache: false,
-    quality: 2,
+    quality: 1,
     smoothing: true,
     draw(ctx) {
       drawView(ctx, {
@@ -162,6 +163,8 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   engine.add(board);
 
   const minimap = document.querySelector<HTMLCanvasElement>("#minimap");
+  const miniTerrain = document.createElement("canvas");
+  let minimapStamp = -1;
   const zoomIn = document.querySelector<HTMLButtonElement>("#zoom-in");
   const zoomOut = document.querySelector<HTMLButtonElement>("#zoom-out");
   const selectAll = document.querySelector<HTMLButtonElement>("#select-all");
@@ -184,21 +187,31 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     jumpMinimap(event);
   });
 
-  map.addEventListener("contextmenu", (event) => event.preventDefault());
-  map.addEventListener("pointerdown", onPointerDown);
-  map.addEventListener("pointermove", onPointerMove);
-  map.addEventListener("pointerup", onPointerUp);
-  map.addEventListener("pointercancel", onPointerUp);
-  map.addEventListener("pointerleave", () => {
+  const frame = map.parentElement ?? map;
+  const liveCanvas = () => document.querySelector<HTMLCanvasElement>("#map") ?? map;
+  const fromMap = (event: Event) => event.target === liveCanvas();
+  frame.addEventListener("contextmenu", (event) => {
+    if (fromMap(event)) event.preventDefault();
+  });
+  document.addEventListener(
+    "mousedown",
+    (event) => {
+      if (event.button === 1 && fromMap(event)) event.preventDefault();
+    },
+    true,
+  );
+  frame.addEventListener("pointerdown", onPointerDown);
+  frame.addEventListener("pointermove", onPointerMove);
+  frame.addEventListener("pointerup", onPointerUp);
+  frame.addEventListener("pointercancel", onPointerUp);
+  frame.addEventListener("pointerleave", () => {
     pointerInside = false;
     if (gesture !== "pan" && gesture !== "box" && gesture !== "pinch") hover = null;
   });
-  map.addEventListener("pointerenter", () => {
-    pointerInside = true;
-  });
-  map.addEventListener(
+  frame.addEventListener(
     "wheel",
     (event) => {
+      if (!fromMap(event)) return;
       event.preventDefault();
       const local = localPoint(event);
       const factor = event.deltaY > 0 ? 1 / 1.12 : 1.12;
@@ -235,7 +248,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   }
 
   function localPoint(event: { clientX: number; clientY: number }): { x: number; y: number } {
-    const rect = map.getBoundingClientRect();
+    const rect = liveCanvas().getBoundingClientRect();
     const width = rect.width || 1;
     const height = rect.height || 1;
     return {
@@ -256,7 +269,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     const human = humanKingdom(state);
     const occupant = hover ? unitAt(state, hover.x, hover.y) : undefined;
     const own = occupant && human && occupant.kingdomId === human.id;
-    map.style.cursor = gesture === "pan" ? "grabbing" : own ? "pointer" : "crosshair";
+    liveCanvas().style.cursor = gesture === "pan" ? "grabbing" : own ? "pointer" : "crosshair";
     if (!changed) return;
     if (!hover || armedPower || selectedIds.length === 0 || state.status !== "playing") {
       previews = [];
@@ -302,12 +315,12 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   }
 
   function onPointerDown(event: PointerEvent): void {
-    if (choosingGod) return;
+    if (choosingGod || !fromMap(event)) return;
     pointerKind = event.pointerType;
     const local = localPoint(event);
     pointerLocal = local;
     contacts.set(event.pointerId, local);
-    map.setPointerCapture(event.pointerId);
+    frame.setPointerCapture(event.pointerId);
     if (contacts.size >= 2) {
       gesture = "pinch";
       pinchDistance = contactSpan();
@@ -331,6 +344,10 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   }
 
   function onPointerMove(event: PointerEvent): void {
+    if (!fromMap(event) && !frame.hasPointerCapture(event.pointerId)) {
+      pointerInside = false;
+      return;
+    }
     pointerKind = event.pointerType;
     pointerInside = true;
     const local = localPoint(event);
@@ -383,6 +400,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   }
 
   function onPointerUp(event: PointerEvent): void {
+    if (!fromMap(event) && !frame.hasPointerCapture(event.pointerId)) return;
     const local = localPoint(event);
     contacts.delete(event.pointerId);
     if (gesture === "box" && box) {
@@ -505,12 +523,21 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     const width = minimap.width;
     const height = minimap.height;
     const size = world();
+    if (miniTerrain.width !== width) miniTerrain.width = width;
+    if (miniTerrain.height !== height) miniTerrain.height = height;
+    const surfaces = viewSurfaces();
+    if (surfaces && surfaces.generation !== minimapStamp) {
+      const terrain = miniTerrain.getContext("2d");
+      if (terrain) {
+        terrain.fillStyle = "#f3e7d0";
+        terrain.fillRect(0, 0, width, height);
+        terrain.drawImage(surfaces.ground, 0, 0, size.width, size.height, 0, 0, width, height);
+      }
+      minimapStamp = surfaces.generation;
+    }
     ctx.fillStyle = "#f3e7d0";
     ctx.fillRect(0, 0, width, height);
-    const surfaces = viewSurfaces();
-    if (surfaces) {
-      ctx.drawImage(surfaces.ground, 0, 0, size.width, size.height, 0, 0, width, height);
-    }
+    ctx.drawImage(miniTerrain, 0, 0);
     for (const unit of state.units) {
       const kingdom = state.kingdoms.find((item) => item.id === unit.kingdomId);
       const center = tileCenter(unit.x, unit.y);
@@ -531,7 +558,18 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   function onKeyDown(event: KeyboardEvent): void {
     const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
     if (typing) return;
-    keys.add(event.key.toLowerCase());
+    const key = event.key.toLowerCase();
+    const pans =
+      key === "arrowleft" ||
+      key === "arrowright" ||
+      key === "arrowup" ||
+      key === "arrowdown" ||
+      key === "w" ||
+      key === "a" ||
+      key === "s" ||
+      key === "d";
+    if (pans || event.key === " ") event.preventDefault();
+    keys.add(key);
     if (event.repeat) return;
     if (event.key === "Escape") {
       selectedIds = [];
@@ -541,7 +579,6 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     }
     if (choosingGod) return;
     if (event.key === " " && state.status === "playing") {
-      event.preventDefault();
       paused = !paused;
       return;
     }
@@ -564,9 +601,6 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     if (event.key.toLowerCase() === "e") {
       selectInView();
       return;
-    }
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "ArrowUp" || event.key === "ArrowDown") {
-      event.preventDefault();
     }
     const human = humanKingdom(state);
     if (!human || state.status !== "playing") return;
