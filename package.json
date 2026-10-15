@@ -2,6 +2,7 @@
   "name": "hearthmarch",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "description": "Hearthmarch, a hand-drawn two-kingdom strategy game.",
   "type": "module",
   "scripts": {

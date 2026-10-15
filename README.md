@@ -54,3 +54,7 @@ Reedmoor's captain keeps the cottage for the first stretch of mornings, then mar
 A kingdom is `{ id, controlledBy: "human" | "cpu", ... }`. The match ends when every human kingdom is gone (a loss) or every computer kingdom is gone (a win).
 
 In the browser console, `window.__hearthmarch.getState()` returns a plain snapshot of the current match.
+
+## License
+
+Hearthmarch is released under the [MIT License](LICENSE). Copyright 2026 Asopitech.
