@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { chooseMarchTarget, decideTax, runAi } from "../src/game/ai.ts";
 import { levy, orderUnit, setPathTo, setTax } from "../src/game/commands.ts";
 import { beliefOf } from "../src/game/faith.ts";
-import { DAY_MS, MOVE_MS, SPAWN_AT, WOOD_MOVE_MS } from "../src/game/config.ts";
+import { COMBAT_RATIO, DAY_MS, LOG_LIMIT, MOVE_MS, SPAWN_AT, WOOD_MOVE_MS } from "../src/game/config.ts";
+import { pushLog } from "../src/game/log.ts";
 import { dailyYield } from "../src/game/economy.ts";
 import { findPath } from "../src/game/path.ts";
 import { getTile, kingdomById, territoryCount, unitsOf } from "../src/game/query.ts";
@@ -324,6 +325,235 @@ describe("skirmishes and hearths", () => {
     expect(getTile(state, 13, 5)?.ownerId).toBe("reedmoor");
   });
 
+  it("refuses a lone full-strength marcher a healthy cottage", () => {
+    const state = createSkirmish();
+    state.units = [];
+    const hearth = state.tiles.find((tile) => tile.isHearth && tile.ownerId === "reedmoor")!;
+    const defender: Unit = {
+      id: 1,
+      seq: 1,
+      kingdomId: "reedmoor",
+      x: hearth.x,
+      y: hearth.y,
+      strength: 10,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const attacker: Unit = {
+      id: 2,
+      seq: 2,
+      kingdomId: "ashvale",
+      x: hearth.x - 1,
+      y: hearth.y,
+      strength: 18,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    state.units.push(defender, attacker);
+    orderUnit(state, attacker.id, hearth.x, hearth.y);
+    tick(state, 100);
+    expect(state.units.map((unit) => unit.id)).toEqual([1]);
+    expect(defender.strength).toBe(Math.max(1, Math.round(10 - 18 * COMBAT_RATIO)));
+    expect(hearth.ownerId).toBe("reedmoor");
+    expect(state.status).toBe("playing");
+  });
+
+  it("lets marchers beside the cottage join the blow and take it", () => {
+    const state = createSkirmish();
+    state.units = [];
+    const hearth = state.tiles.find((tile) => tile.isHearth && tile.ownerId === "reedmoor")!;
+    const north = getTile(state, hearth.x, hearth.y - 1)!;
+    north.terrain = "meadow";
+    north.isHearth = false;
+    const defender: Unit = {
+      id: 1,
+      seq: 1,
+      kingdomId: "reedmoor",
+      x: hearth.x,
+      y: hearth.y,
+      strength: 10,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const ally: Unit = {
+      id: 3,
+      seq: 3,
+      kingdomId: "ashvale",
+      x: north.x,
+      y: north.y,
+      strength: 10,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const attacker: Unit = {
+      id: 2,
+      seq: 2,
+      kingdomId: "ashvale",
+      x: hearth.x - 1,
+      y: hearth.y,
+      strength: 12,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    state.units.push(defender, ally, attacker);
+    orderUnit(state, attacker.id, hearth.x, hearth.y);
+    tick(state, 100);
+    expect(state.units.some((unit) => unit.id === defender.id)).toBe(false);
+    expect(state.units.some((unit) => unit.id === ally.id)).toBe(true);
+    expect(attacker.x).toBe(hearth.x);
+    expect(attacker.strength).toBe(Math.max(1, Math.round(12 - 18 * COMBAT_RATIO)));
+    expect(hearth.ownerId).toBe("ashvale");
+    expect(state.status).toBe("won");
+  });
+
+  it("wounds a cottage by the whole company when the blow still falls short", () => {
+    const state = createSkirmish();
+    state.units = [];
+    const hearth = state.tiles.find((tile) => tile.isHearth && tile.ownerId === "reedmoor")!;
+    const north = getTile(state, hearth.x, hearth.y - 1)!;
+    north.terrain = "meadow";
+    north.isHearth = false;
+    const defender: Unit = {
+      id: 1,
+      seq: 1,
+      kingdomId: "reedmoor",
+      x: hearth.x,
+      y: hearth.y,
+      strength: 13,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const ally: Unit = {
+      id: 3,
+      seq: 3,
+      kingdomId: "ashvale",
+      x: north.x,
+      y: north.y,
+      strength: 10,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const attacker: Unit = {
+      id: 2,
+      seq: 2,
+      kingdomId: "ashvale",
+      x: hearth.x - 1,
+      y: hearth.y,
+      strength: 10,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    state.units.push(defender, ally, attacker);
+    orderUnit(state, attacker.id, hearth.x, hearth.y);
+    tick(state, 100);
+    expect(state.units.map((unit) => unit.id).sort()).toEqual([1, 3]);
+    expect(defender.strength).toBe(Math.max(1, Math.round(13 - 20 * COMBAT_RATIO)));
+    expect(hearth.ownerId).toBe("reedmoor");
+  });
+
+  it("keeps an open-ground duel between the two marchers who meet", () => {
+    const state = createSkirmish();
+    state.units = [];
+    const ground = getTile(state, 13, 5)!;
+    ground.terrain = "meadow";
+    ground.isHearth = false;
+    ground.ownerId = "reedmoor";
+    const beside = getTile(state, 13, 6)!;
+    beside.terrain = "meadow";
+    beside.isHearth = false;
+    const defender: Unit = {
+      id: 1,
+      seq: 1,
+      kingdomId: "reedmoor",
+      x: 13,
+      y: 5,
+      strength: 12,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const ally: Unit = {
+      id: 3,
+      seq: 3,
+      kingdomId: "ashvale",
+      x: 13,
+      y: 6,
+      strength: 10,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const attacker: Unit = {
+      id: 2,
+      seq: 2,
+      kingdomId: "ashvale",
+      x: 12,
+      y: 5,
+      strength: 10,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    state.units.push(defender, ally, attacker);
+    orderUnit(state, attacker.id, 13, 5);
+    tick(state, 100);
+    expect(state.units.some((unit) => unit.id === attacker.id)).toBe(false);
+    expect(defender.strength).toBe(Math.max(1, Math.round(12 - 10 * COMBAT_RATIO)));
+    expect(ground.ownerId).toBe("reedmoor");
+  });
+
+  it("does not mend a cottage while an enemy stands beside it", () => {
+    const state = createSkirmish();
+    state.units = [];
+    const hearth = state.tiles.find((tile) => tile.isHearth && tile.ownerId === "reedmoor")!;
+    const defender: Unit = {
+      id: 1,
+      seq: 1,
+      kingdomId: "reedmoor",
+      x: hearth.x,
+      y: hearth.y,
+      strength: 10,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const besieger: Unit = {
+      id: 2,
+      seq: 2,
+      kingdomId: "ashvale",
+      x: hearth.x - 1,
+      y: hearth.y,
+      strength: 8,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    state.units.push(defender, besieger);
+    applyDawn(state);
+    expect(defender.strength).toBe(10);
+    besieger.x = 0;
+    besieger.y = 0;
+    applyDawn(state);
+    expect(defender.strength).toBe(11);
+  });
+
+  it("keeps a long field log instead of the last few lines", () => {
+    const state = createSkirmish();
+    state.log = [];
+    for (let i = 0; i < LOG_LIMIT + 5; i++) pushLog(state, "log.levy", { kingdom: "ashvale" });
+    expect(state.log).toHaveLength(LOG_LIMIT);
+    expect(LOG_LIMIT).toBeGreaterThan(7);
+    expect(state.log[0]?.day).toBe(state.day);
+  });
+
   it("gives a hearth a defensive bonus", () => {
     const state = createSkirmish();
     state.units = [];
@@ -458,6 +688,63 @@ describe("computer kingdom", () => {
   it("eases the tax when the faith bowl is empty and marchers are already in the field", () => {
     expect(decideTax({ gold: 120, population: 40, ownUnits: 3, rivalUnits: 1, faith: 0 })).toBe(8);
     expect(decideTax({ gold: 120, population: 40, ownUnits: 3, rivalUnits: 1, faith: 40 })).toBe(9);
+  });
+
+  it("holds at the cottage door until a company can break it", () => {
+    const state = createSkirmish();
+    state.day = 20;
+    state.units = [];
+    const hearth = state.tiles.find((tile) => tile.isHearth && tile.ownerId === "ashvale")!;
+    for (const [dx, dy] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ] as const) {
+      const tile = getTile(state, hearth.x + dx, hearth.y + dy);
+      if (!tile) continue;
+      tile.terrain = "meadow";
+      tile.isHearth = false;
+    }
+    const defender: Unit = {
+      id: 1,
+      seq: 1,
+      kingdomId: "ashvale",
+      x: hearth.x,
+      y: hearth.y,
+      strength: 18,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    const lone: Unit = {
+      id: 2,
+      seq: 2,
+      kingdomId: "reedmoor",
+      x: hearth.x + 1,
+      y: hearth.y,
+      strength: 18,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    state.units.push(defender, lone);
+    expect(chooseMarchTarget(state, lone)).toBeNull();
+
+    const friend: Unit = {
+      id: 3,
+      seq: 3,
+      kingdomId: "reedmoor",
+      x: hearth.x,
+      y: hearth.y - 1,
+      strength: 12,
+      path: [],
+      moveMs: 0,
+      waitSteps: 0,
+    };
+    state.units.push(friend);
+    expect(chooseMarchTarget(state, lone)).toEqual({ x: hearth.x, y: hearth.y });
+    expect(chooseMarchTarget(state, friend)).toBeNull();
   });
 
   it("keeps the captain on the hearth at first and sends the other marcher to the frontier", () => {

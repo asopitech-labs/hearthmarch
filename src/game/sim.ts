@@ -20,7 +20,7 @@ import { addDawnFaith, beliefOf, considerDivine, rivalGod } from "./faith.ts";
 import { pushLog } from "./log.ts";
 import { buildMarsh } from "./map.ts";
 import { findPath } from "./path.ts";
-import { getTile, kingdomById, territoryCount, unitAt, unitsOf } from "./query.ts";
+import { DIRS, getTile, kingdomById, territoryCount, unitAt, unitsOf } from "./query.ts";
 import type { GameState, GameStatus, GodId, Kingdom, PowerId, Tile, Unit } from "./types.ts";
 
 function claimDisk(
@@ -181,6 +181,30 @@ function removeUnit(state: GameState, unit: Unit): void {
   if (index >= 0) state.units.splice(index, 1);
 }
 
+/**
+ * On a hearth, marchers already standing on the four neighboring tiles
+ * join the blow. Lord Monarch takes a castle with one gathered body, not
+ * a queue of equal duels. Open ground stays a duel.
+ */
+function assaultStrength(state: GameState, attacker: Unit, tile: Tile): number {
+  if (!tile.isHearth) return attacker.strength;
+  let assault = attacker.strength;
+  for (const [dx, dy] of DIRS) {
+    const ally = unitAt(state, tile.x + dx, tile.y + dy);
+    if (!ally || ally.id === attacker.id || ally.kingdomId !== attacker.kingdomId) continue;
+    assault += ally.strength;
+  }
+  return assault;
+}
+
+function hearthInvested(state: GameState, tile: Tile, kingdomId: string): boolean {
+  for (const [dx, dy] of DIRS) {
+    const neighbor = unitAt(state, tile.x + dx, tile.y + dy);
+    if (neighbor && neighbor.kingdomId !== kingdomId) return true;
+  }
+  return false;
+}
+
 function fight(
   state: GameState,
   attacker: Unit,
@@ -189,20 +213,21 @@ function fight(
 ): "attacker" | "defender" {
   const homeBonus = tile.isHearth && tile.ownerId === defender.kingdomId ? HEARTH_BONUS : 0;
   const defense = defender.strength + homeBonus;
+  const assault = assaultStrength(state, attacker, tile);
   state.flashes.push({ x: tile.x, y: tile.y, ms: 820, kind: "combat" });
   const attackerKingdom = kingdomById(state, attacker.kingdomId);
   const defenderKingdom = kingdomById(state, defender.kingdomId);
   const attackerId = attackerKingdom?.id ?? "marcher";
   const defenderId = defenderKingdom?.id ?? "marcher";
 
-  if (attacker.strength > defense) {
+  if (assault > defense) {
     attacker.strength = Math.max(1, Math.round(attacker.strength - defense * COMBAT_RATIO));
     removeUnit(state, defender);
     pushLog(state, "log.break", { attacker: attackerId, defender: defenderId });
     return "attacker";
   }
 
-  defender.strength = Math.max(1, Math.round(defender.strength - attacker.strength * COMBAT_RATIO));
+  defender.strength = Math.max(1, Math.round(defender.strength - assault * COMBAT_RATIO));
   removeUnit(state, attacker);
   pushLog(state, "log.hold", { defender: defenderId, attacker: attackerId });
   return "defender";
@@ -274,9 +299,9 @@ export function applyDawn(state: GameState): void {
 
     for (const unit of unitsOf(state, kingdom.id)) {
       const tile = getTile(state, unit.x, unit.y);
-      if (tile && tile.ownerId === kingdom.id && unit.strength < MAX_STRENGTH) {
-        unit.strength += REGEN;
-      }
+      if (!tile || tile.ownerId !== kingdom.id || unit.strength >= MAX_STRENGTH) continue;
+      if (tile.isHearth && hearthInvested(state, tile, kingdom.id)) continue;
+      unit.strength += REGEN;
     }
 
     if (unitsOf(state, kingdom.id).length >= MAX_UNITS) {

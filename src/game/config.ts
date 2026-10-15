@@ -33,7 +33,8 @@ export const REGEN = 1;
 /**
  * A marcher standing on their own hearth fights as if they were this much
  * stronger. The bonus is not stored on the unit, so leaving the hearth
- * spends it at once.
+ * spends it at once. One attacker still ties a healthy garrison. Friendly
+ * marchers on the four neighboring tiles add their strength to that blow.
  */
 export const HEARTH_BONUS = 8;
 
@@ -42,7 +43,8 @@ export const MAX_UNITS = 8;
 /** Share of the loser's strength (or the attacker's, if they lose) dealt to the winner. */
 export const COMBAT_RATIO = 0.65;
 
-export const LOG_LIMIT = 7;
+/** Lines kept in the field log. The panel scrolls, so a sitting can be reread. */
+export const LOG_LIMIT = 160;
 
 export const SLICE_MS = 100;
 

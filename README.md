@@ -34,7 +34,7 @@ npm run build
 - A rite spends faith. Press 1, 2, or 3, or click the rite, then click the marsh. Each rite rests for a few seconds after it lands.
 - **Call a levy** spends gold to raise a marcher immediately.
 - Left-click a marcher, or drag a box around several. Shift-click adds one. Right-click sends them. A dotted line shows the path. On a touch screen, tap a marcher, then tap the ground. They walk around water and around your other marchers, and claim every tile they step on. Stepping onto an enemy marcher starts a skirmish. The stronger side stays, wounded. Equal strength favors whoever already held the tile.
-- A hearth shelters its defender. Fighting on a cottage is harder than fighting in the open.
+- A hearth shelters its defender. One marcher cannot break a healthy cottage. Bring others to the door and they join that blow. A cottage with an enemy beside it does not mend until they leave.
 - Reedmoor sets its own tax, raises marchers, calls rites through the match, and pushes toward your hearth. Standing still is a way to lose.
 - Pause with the button or Space. F or the pace button switches to 2×. Start over deals the same marsh again.
 

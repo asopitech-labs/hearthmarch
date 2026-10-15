@@ -1,5 +1,5 @@
 import { levy, setPathTo } from "./commands.ts";
-import { LEVY_COST, RITE_COST_SMALL, SPAWN_AT } from "./config.ts";
+import { HEARTH_BONUS, LEVY_COST, RITE_COST_SMALL, SPAWN_AT } from "./config.ts";
 
 /** Mornings a computer captain will sit the hearth before marching out. */
 const GARRISON_DAYS = 10;
@@ -104,6 +104,67 @@ function nearestFrontier(
   return null;
 }
 
+/** A friend this close to the enemy cottage calls the rest of the army in. */
+const SIEGE_CALL = 6;
+
+function orthogonalTo(unit: Unit, tile: Tile): boolean {
+  return Math.abs(unit.x - tile.x) + Math.abs(unit.y - tile.y) === 1;
+}
+
+function adjacentAllies(state: GameState, unit: Unit, hearth: Tile): Unit[] {
+  const allies: Unit[] = [];
+  for (const [dx, dy] of DIRS) {
+    const ally = unitAt(state, hearth.x + dx, hearth.y + dy);
+    if (!ally || ally.id === unit.id || ally.kingdomId !== unit.kingdomId) continue;
+    allies.push(ally);
+  }
+  return allies;
+}
+
+/** Step onto the cottage only when the company already at the door can break it. */
+function shouldStorm(state: GameState, unit: Unit, hearth: Tile): boolean {
+  if (!orthogonalTo(unit, hearth)) return false;
+  const defender = unitAt(state, hearth.x, hearth.y);
+  if (!defender || defender.kingdomId === unit.kingdomId) return true;
+  const allies = adjacentAllies(state, unit, hearth);
+  const assault = unit.strength + allies.reduce((sum, ally) => sum + ally.strength, 0);
+  const defense = defender.strength + (hearth.ownerId === defender.kingdomId ? HEARTH_BONUS : 0);
+  if (assault <= defense) return false;
+  const company = [unit, ...allies].sort((a, b) => b.strength - a.strength || a.seq - b.seq);
+  return company[0]?.id === unit.id;
+}
+
+function siegeCalled(state: GameState, unit: Unit, hearth: Tile): boolean {
+  return state.units.some(
+    (mate) => mate.kingdomId === unit.kingdomId && manhattan(mate, hearth) <= SIEGE_CALL,
+  );
+}
+
+/** The weakest marcher keeps the home cottage once a siege has been called. */
+function isHomeGuard(state: GameState, unit: Unit): boolean {
+  const mates = unitsOf(state, unit.kingdomId);
+  if (mates.length < 3) return false;
+  const weakest = mates.slice().sort((a, b) => a.strength - b.strength || b.seq - a.seq)[0];
+  return weakest?.id === unit.id;
+}
+
+function siegeDestination(
+  state: GameState,
+  unit: Unit,
+  hearth: Tile,
+): { x: number; y: number } | null {
+  if (shouldStorm(state, unit, hearth)) return { x: hearth.x, y: hearth.y };
+  if (orthogonalTo(unit, hearth)) return null;
+  for (const [dx, dy] of DIRS) {
+    const tile = getTile(state, hearth.x + dx, hearth.y + dy);
+    if (!tile || tile.terrain === "water") continue;
+    const occupant = unitAt(state, tile.x, tile.y);
+    if (occupant && occupant.id !== unit.id) continue;
+    return { x: tile.x, y: tile.y };
+  }
+  return null;
+}
+
 /** Where this computer marcher should walk next. Null means hold. */
 export function chooseMarchTarget(
   state: GameState,
@@ -119,15 +180,26 @@ export function chooseMarchTarget(
     return null;
   }
 
+  const enemyHearth = nearestEnemyHearth(state, unit);
+  const called = enemyHearth ? siegeCalled(state, unit, enemyHearth) : false;
+  if (called && isHomeGuard(state, unit)) {
+    const home = ownHearth(state, unit);
+    if (home && (unit.x !== home.x || unit.y !== home.y)) return { x: home.x, y: home.y };
+    return null;
+  }
+
   const nearby = state.units
     .filter((other) => other.kingdomId !== unit.kingdomId && manhattan(other, unit) <= 5)
     .sort((a, b) => manhattan(a, unit) - manhattan(b, unit) || a.strength - b.strength);
   const threat = nearby.find((other) => unit.strength + 1 >= other.strength);
-  if (threat) return { x: threat.x, y: threat.y };
+  if (threat) {
+    const ground = getTile(state, threat.x, threat.y);
+    const cottage = ground?.isHearth && ground.ownerId === threat.kingdomId ? ground : null;
+    if (!cottage || shouldStorm(state, unit, cottage)) return { x: threat.x, y: threat.y };
+  }
 
-  if (vanguard) {
-    const hearth = nearestEnemyHearth(state, unit);
-    if (hearth) return { x: hearth.x, y: hearth.y };
+  if ((vanguard || called) && enemyHearth) {
+    return siegeDestination(state, unit, enemyHearth);
   }
 
   return nearestFrontier(state, unit);

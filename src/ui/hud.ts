@@ -356,6 +356,7 @@ export function mountHud(handlers: HudHandlers): {
       const lines = state.log.map((entry) => formatLog(entry));
       const signature = `${getLocale()}\n${lines.join("\n")}`;
       if (log.dataset.signature !== signature) {
+        const pinned = log.scrollHeight - log.scrollTop - log.clientHeight < 28;
         log.dataset.signature = signature;
         log.replaceChildren();
         for (const line of lines) {
@@ -363,6 +364,7 @@ export function mountHud(handlers: HudHandlers): {
           item.textContent = line;
           log.append(item);
         }
+        if (pinned) log.scrollTop = log.scrollHeight;
       }
     },
   };
