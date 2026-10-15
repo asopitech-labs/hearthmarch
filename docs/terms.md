@@ -6,7 +6,7 @@ The language button is labeled with the other language (`日本語` while the pa
 
 | English | Japanese | Reading | Note |
 | --- | --- | --- | --- |
-| Hearthmarch | 炉辺行 | ろへんこう | The march that starts at the cottage fire. |
+| Hearthmarch | ハースマーチ | はーすまーち | Katakana for the English title. |
 | Reed Marsh | 葦の湿原 | あしのしつげん | The map. |
 | Ashvale | 杏の谷 | あんずのたに | The player's kingdom. Apricot, for the orange ground. |
 | Reedmoor | 葦の原 | あしのはら | The computer kingdom. |

@@ -18,6 +18,12 @@ describe("catalogs", () => {
       expect(ja[key as keyof typeof ja].trim().length).toBeGreaterThan(0);
     }
   });
+
+  it("names the game ハースマーチ in Japanese", () => {
+    expect(ja.title).toBe("ハースマーチ");
+    expect(ja["meta.description"].startsWith("ハースマーチ")).toBe(true);
+    expect(JSON.stringify(ja).includes("炉辺行")).toBe(false);
+  });
 });
 
 describe("localeFromLanguages", () => {

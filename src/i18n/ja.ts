@@ -1,8 +1,8 @@
 import type { MessageKey } from "./en.ts";
 
 export const ja = {
-  title: "炉辺行",
-  "meta.description": "炉辺行は、手描きの戦略ゲームです。税を定め、兵を進め、相手の炉を落とします。",
+  title: "ハースマーチ",
+  "meta.description": "ハースマーチは、手描きの戦略ゲームです。税を定め、兵を進め、相手の炉を落とします。",
   eyebrow: "二つの炉、ひとつの湿原",
   lede: "税を定め、兵を送り、自分の炉が消える前に、相手の炉を落とせ。",
   pause: "一時停止",
