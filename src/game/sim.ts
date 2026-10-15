@@ -18,23 +18,10 @@ import { setPathTo, trySpawn } from "./commands.ts";
 import { dailyYield } from "./economy.ts";
 import { addDawnFaith, beliefOf, considerDivine, godById, rivalGod } from "./faith.ts";
 import { pushLog } from "./log.ts";
+import { buildMarsh } from "./map.ts";
 import { findPath } from "./path.ts";
 import { getTile, kingdomById, territoryCount, unitAt, unitsOf } from "./query.ts";
-import type { GameState, GameStatus, GodId, Kingdom, PowerId, Terrain, Tile, Unit } from "./types.ts";
-
-const ROWS = [
-  "....ww......ww..",
-  "...www......www.",
-  "................",
-  "......~~........",
-  "......~~........",
-  "..A...........B.",
-  "......~~........",
-  "......~~........",
-  "...w............",
-  "..........www...",
-  "....ww......ww..",
-];
+import type { GameState, GameStatus, GodId, Kingdom, PowerId, Tile, Unit } from "./types.ts";
 
 function claimDisk(
   tiles: Tile[],
@@ -81,34 +68,11 @@ export interface SkirmishOptions {
 export function createSkirmish(options?: SkirmishOptions): GameState {
   const humanGod = options?.humanGod ?? "lark";
   const cpuGod = options?.cpuGod ?? rivalGod(humanGod);
-  const height = ROWS.length;
-  const width = ROWS[0]!.length;
-  if (ROWS.some((row) => row.length !== width)) {
-    throw new Error("Map rows must be rectangular");
-  }
-
-  const tiles: Tile[] = [];
-  let playerHearth = { x: 0, y: 0 };
-  let cpuHearth = { x: 0, y: 0 };
-
-  for (let y = 0; y < height; y++) {
-    const row = ROWS[y]!;
-    for (let x = 0; x < width; x++) {
-      const symbol = row[x]!;
-      let terrain: Terrain = "meadow";
-      let isHearth = false;
-      if (symbol === "w") terrain = "wood";
-      else if (symbol === "~") terrain = "water";
-      else if (symbol === "A") {
-        isHearth = true;
-        playerHearth = { x, y };
-      } else if (symbol === "B") {
-        isHearth = true;
-        cpuHearth = { x, y };
-      }
-      tiles.push({ x, y, terrain, ownerId: null, isHearth });
-    }
-  }
+  const marsh = buildMarsh();
+  const { width, height, tiles } = marsh;
+  const playerHearth = tiles.find((tile) => tile.isHearth && tile.x < width / 2);
+  const cpuHearth = tiles.find((tile) => tile.isHearth && tile.x > width / 2);
+  if (!playerHearth || !cpuHearth) throw new Error("The marsh is missing a hearth");
 
   claimDisk(tiles, playerHearth, "ashvale", 2);
   claimDisk(tiles, cpuHearth, "reedmoor", 2);

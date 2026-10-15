@@ -1,12 +1,15 @@
 /** Tax is an integer percent. 0 favors villages; 30 favors the coffer. */
 export const TAX_MAX = 30;
 
-/** Real time between dawns, when taxes are paid and villages grow. */
-export const DAY_MS = 4000;
+/**
+ * Real time between dawns. A day is long enough that tax, faith, and a
+ * march across the wide marsh all matter in the same sitting.
+ */
+export const DAY_MS = 22000;
 
-export const MOVE_MS = 1200;
+export const MOVE_MS = 12000;
 
-export const WOOD_MOVE_MS = 1800;
+export const WOOD_MOVE_MS = 16500;
 
 /** Villagers required before a kingdom musters a marcher on its own. */
 export const SPAWN_AT = 56;
@@ -34,7 +37,7 @@ export const REGEN = 1;
  */
 export const HEARTH_BONUS = 8;
 
-export const MAX_UNITS = 6;
+export const MAX_UNITS = 8;
 
 /** Share of the loser's strength (or the attacker's, if they lose) dealt to the winner. */
 export const COMBAT_RATIO = 0.65;
@@ -56,11 +59,11 @@ export const FAITH_PER_VILLAGER = 0.22;
 
 export const RITE_COOLDOWN_MS = 2800;
 
-/** How often a computer kingdom looks for a rite after the first one. */
-export const RITE_THINK_MS = 4500;
+/** How often a computer kingdom looks for another rite. */
+export const RITE_THINK_MS = 9000;
 
 /** Delay before the computer's first rite, so the opening is readable. */
-export const RITE_FIRST_MS = 1600;
+export const RITE_FIRST_MS = 5000;
 
 export const RITE_COST_SMALL = 12;
 export const RITE_COST_MID = 22;

@@ -1,8 +1,11 @@
 import { levy, setPathTo } from "./commands.ts";
-import { LEVY_COST, SPAWN_AT } from "./config.ts";
+import { LEVY_COST, RITE_COST_SMALL, SPAWN_AT } from "./config.ts";
 
 /** Mornings a computer captain will sit the hearth before marching out. */
-const GARRISON_DAYS = 6;
+const GARRISON_DAYS = 10;
+
+/** The captain stays home until the field army is at least this large. */
+const GARRISON_UNITS = 4;
 import { pushLog } from "./log.ts";
 import { DIRS, getTile, kingdomById, manhattan, unitAt, unitsOf } from "./query.ts";
 import type { GameState, Tile, Unit } from "./types.ts";
@@ -12,14 +15,28 @@ export function decideTax(input: {
   population: number;
   ownUnits: number;
   rivalUnits: number;
+  faith?: number;
 }): number {
   const needsBodies = input.ownUnits < 2 || input.ownUnits < input.rivalUnits;
+  let rate: number;
   if (needsBodies) {
-    if (input.gold < LEVY_COST && input.population < SPAWN_AT * 0.55) return 22;
-    return 3;
+    rate = input.gold < LEVY_COST && input.population < SPAWN_AT * 0.55 ? 22 : 3;
+  } else if (input.gold < LEVY_COST) {
+    rate = 16;
+  } else {
+    rate = 9;
   }
-  if (input.gold < LEVY_COST) return 16;
-  return 9;
+  // A hard tax stills prayer. Once there are marchers, leave the villages
+  // enough that another rite can be bought instead of going quiet.
+  if (
+    input.faith !== undefined &&
+    input.faith < RITE_COST_SMALL &&
+    input.ownUnits >= 2 &&
+    rate > 8
+  ) {
+    return 8;
+  }
+  return rate;
 }
 
 function isVanguard(state: GameState, unit: Unit): boolean {
@@ -96,7 +113,7 @@ export function chooseMarchTarget(
   if (!kingdom?.alive) return null;
 
   const vanguard = isVanguard(state, unit);
-  if (vanguard && unitsOf(state, unit.kingdomId).length < 3 && state.day < GARRISON_DAYS) {
+  if (vanguard && unitsOf(state, unit.kingdomId).length < GARRISON_UNITS && state.day < GARRISON_DAYS) {
     const home = ownHearth(state, unit);
     if (home && (unit.x !== home.x || unit.y !== home.y)) return { x: home.x, y: home.y };
     return null;
@@ -132,6 +149,7 @@ export function runAi(state: GameState, kingdomId: string): void {
     population: kingdom.population,
     ownUnits: own.length,
     rivalUnits,
+    faith: kingdom.faith,
   });
   if (nextTax !== kingdom.taxRate) {
     kingdom.taxRate = nextTax;

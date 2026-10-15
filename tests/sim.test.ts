@@ -142,9 +142,10 @@ describe("tax and muster", () => {
       wash: "rgba(0,0,0,0.2)",
       ...beliefOf("lark"),
     });
-    const corner = getTile(state, 15, 0);
-    expect(corner?.terrain).not.toBe("water");
-    corner!.ownerId = "briar";
+    const corner = getTile(state, 15, 0)!;
+    corner.terrain = "meadow";
+    corner.isHearth = false;
+    corner.ownerId = "briar";
     applyDawn(state);
     expect(kingdomById(state, "briar")?.gold).toBe(dailyYield(1, 30).gold);
     expect(ashvale(state).gold).toBeGreaterThan(30);
@@ -155,12 +156,15 @@ describe("movement and capture", () => {
   it("walks onto open marsh and claims it", () => {
     const state = createSkirmish();
     const unit = playerUnit(state, 10);
-    expect(getTile(state, 5, 5)?.ownerId).toBeNull();
-    expect(orderUnit(state, unit.id, 5, 5)).toBe(true);
+    const dest = getTile(state, unit.x + 1, unit.y)!;
+    dest.terrain = "meadow";
+    dest.ownerId = null;
+    dest.isHearth = false;
+    expect(orderUnit(state, unit.id, dest.x, dest.y)).toBe(true);
     tick(state, 100);
-    expect(unit.x).toBe(5);
-    expect(unit.y).toBe(5);
-    expect(getTile(state, 5, 5)?.ownerId).toBe("ashvale");
+    expect(unit.x).toBe(dest.x);
+    expect(unit.y).toBe(dest.y);
+    expect(dest.ownerId).toBe("ashvale");
   });
 
   it("refuses a computer marcher and refuses water", () => {
@@ -179,11 +183,22 @@ describe("movement and capture", () => {
     const state = createSkirmish();
     const unit = playerUnit(state, 13);
     unit.x = 2;
-    unit.y = 3;
-    const path = findPath(state, unit, { x: 14, y: 3 });
+    unit.y = 6;
+    unit.path = [];
+    for (let y = 0; y <= 8; y++) {
+      const wall = getTile(state, 4, y)!;
+      wall.terrain = "water";
+      wall.ownerId = null;
+      wall.isHearth = false;
+    }
+    const dest = getTile(state, 6, 6)!;
+    dest.terrain = "meadow";
+    dest.isHearth = false;
+    const path = findPath(state, unit, { x: dest.x, y: dest.y });
     expect(path).not.toBeNull();
     expect(path!.some((step) => getTile(state, step.x, step.y)?.terrain === "water")).toBe(false);
-    expect(path!.at(-1)).toEqual({ x: 14, y: 3 });
+    expect(path!.at(-1)).toEqual({ x: dest.x, y: dest.y });
+    expect(path!.some((step) => step.y > 8)).toBe(true);
   });
 
   it("does not let a marcher step into water even with a forged path", () => {
@@ -201,31 +216,33 @@ describe("movement and capture", () => {
   it("takes longer to enter the trees", () => {
     const state = createSkirmish();
     const unit = playerUnit(state, 10);
-    unit.x = 3;
-    unit.y = 2;
     unit.path = [];
-    expect(getTile(state, 3, 1)?.terrain).toBe("wood");
-    expect(orderUnit(state, unit.id, 3, 1)).toBe(true);
+    const grove = getTile(state, unit.x, unit.y - 1)!;
+    grove.terrain = "wood";
+    grove.ownerId = null;
+    grove.isHearth = false;
+    expect(orderUnit(state, unit.id, grove.x, grove.y)).toBe(true);
     tick(state, WOOD_MOVE_MS - MOVE_MS - 50);
-    expect(unit.y).toBe(2);
+    expect(unit.y).toBe(grove.y + 1);
     tick(state, 200);
-    expect(unit.y).toBe(1);
-    expect(getTile(state, 3, 1)?.ownerId).toBe("ashvale");
+    expect(unit.y).toBe(grove.y);
+    expect(grove.ownerId).toBe("ashvale");
   });
 
   it("claims an enemy tile by stepping on it", () => {
     const state = createSkirmish();
     state.units = state.units.filter((unit) => unit.kingdomId === "ashvale");
     const unit = playerUnit(state, 13);
-    unit.x = 13;
-    unit.y = 3;
     unit.path = [];
-    expect(getTile(state, 13, 4)?.ownerId).toBe("reedmoor");
-    expect(orderUnit(state, unit.id, 13, 4)).toBe(true);
+    const dest = getTile(state, unit.x + 1, unit.y)!;
+    dest.terrain = "meadow";
+    dest.ownerId = "reedmoor";
+    dest.isHearth = false;
+    expect(orderUnit(state, unit.id, dest.x, dest.y)).toBe(true);
     tick(state, 100);
-    expect(unit.x).toBe(13);
-    expect(unit.y).toBe(4);
-    expect(getTile(state, 13, 4)?.ownerId).toBe("ashvale");
+    expect(unit.x).toBe(dest.x);
+    expect(unit.y).toBe(dest.y);
+    expect(dest.ownerId).toBe("ashvale");
     expect(state.status).toBe("playing");
   });
 });
@@ -258,6 +275,10 @@ describe("skirmishes and hearths", () => {
       waitSteps: 0,
     };
     state.units.push(defender, attacker);
+    const ground = getTile(state, 13, 5)!;
+    ground.terrain = "meadow";
+    ground.isHearth = false;
+    ground.ownerId = "reedmoor";
     expect(orderUnit(state, attacker.id, 13, 5)).toBe(true);
     tick(state, 100);
     expect(state.units.some((unit) => unit.id === defender.id)).toBe(false);
@@ -292,6 +313,10 @@ describe("skirmishes and hearths", () => {
       waitSteps: 0,
     };
     state.units.push(defender, attacker);
+    const ground = getTile(state, 13, 5)!;
+    ground.terrain = "meadow";
+    ground.isHearth = false;
+    ground.ownerId = "reedmoor";
     orderUnit(state, attacker.id, 13, 5);
     tick(state, 100);
     expect(state.units.map((unit) => unit.id)).toEqual([1]);
@@ -430,6 +455,11 @@ describe("computer kingdom", () => {
     expect(decideTax({ gold: 0, population: 10, ownUnits: 1, rivalUnits: 3 })).toBe(22);
   });
 
+  it("eases the tax when the faith bowl is empty and marchers are already in the field", () => {
+    expect(decideTax({ gold: 120, population: 40, ownUnits: 3, rivalUnits: 1, faith: 0 })).toBe(8);
+    expect(decideTax({ gold: 120, population: 40, ownUnits: 3, rivalUnits: 1, faith: 40 })).toBe(9);
+  });
+
   it("keeps the captain on the hearth at first and sends the other marcher to the frontier", () => {
     const state = createSkirmish();
     const captain = unitsOf(state, "reedmoor").find((unit) => unit.strength === 13)!;
@@ -459,7 +489,7 @@ describe("computer kingdom", () => {
   it("reaches a win or a loss when both sides push", () => {
     const state = createSkirmish();
     let guard = 0;
-    while (state.status === "playing" && guard < 80) {
+    while (state.status === "playing" && guard < 400) {
       const foe = state.kingdoms.find((kingdom) => kingdom.controlledBy === "cpu" && kingdom.alive);
       const hearth = foe
         ? state.tiles.find((tile) => tile.isHearth && tile.ownerId === foe.id)
@@ -474,7 +504,7 @@ describe("computer kingdom", () => {
       guard += 1;
     }
     expect(state.status === "won" || state.status === "lost").toBe(true);
-    expect(guard).toBeLessThan(80);
+    expect(guard).toBeLessThan(400);
   });
 
   it("keeps issuing orders after a fresh think", () => {

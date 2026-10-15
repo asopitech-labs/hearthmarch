@@ -8,7 +8,7 @@ import type { GameState, GodId, Kingdom, PowerId, Unit } from "../game/types.ts"
 export interface HudView {
   paused: boolean;
   speed: number;
-  selectedId: number | null;
+  selectedIds: number[];
   note: string;
   armedPower: PowerId | null;
   choosingGod: boolean;
@@ -169,9 +169,9 @@ export function mountHud(handlers: HudHandlers): {
         rites.append(button);
       }
     }
-    for (const power of god.powers) {
+    god.powers.forEach((power, index) => {
       const button = rites.querySelector<HTMLButtonElement>(`[data-power="${power.id}"]`);
-      if (!button) continue;
+      if (!button) return;
       const wait = human.riteWait[power.id] ?? 0;
       const cooling = wait > 0;
       const label = cooling
@@ -181,8 +181,8 @@ export function mountHud(handlers: HudHandlers): {
       button.disabled =
         state.status !== "playing" || !human.alive || cooling || human.faith < power.cost;
       button.setAttribute("aria-pressed", armed === power.id ? "true" : "false");
-      button.title = power.blurb;
-    }
+      button.title = `${power.blurb} Key ${index + 1}.`;
+    });
   }
 
   return {
@@ -196,7 +196,7 @@ export function mountHud(handlers: HudHandlers): {
         swatch.style.background = human.ink;
         requireElement("#player-name").textContent = human.name;
         fillKingdomStats(playerCard, human, state, "player");
-        const selected = state.units.find((unit) => unit.id === view.selectedId) ?? null;
+        const selected = state.units.filter((unit) => view.selectedIds.includes(unit.id));
         const selectedLine = requireElement("#player-selected");
         if (!human.alive) {
           selectedLine.textContent = "The hearth is lost.";
@@ -206,11 +206,14 @@ export function mountHud(handlers: HudHandlers): {
           selectedLine.textContent = "No marchers in the field. Lower the tax, or call a levy, before the hearth stands empty.";
         } else if (view.armedPower) {
           const power = powerById(view.armedPower);
-          selectedLine.textContent = `${power.name} is ready. ${power.blurb}`;
-        } else if (selected) {
-          selectedLine.textContent = `Strength ${selected.strength}, ${placePhrase(state, selected, human.id)}. Click a tile to send them.`;
+          selectedLine.textContent = `${power.name} is ready. ${power.blurb} Click the marsh.`;
+        } else if (selected.length > 1) {
+          selectedLine.textContent = `${selected.length} marchers. Right-click the ground to send them together.`;
+        } else if (selected.length === 1) {
+          const unit = selected[0]!;
+          selectedLine.textContent = `Strength ${unit.strength}, ${placePhrase(state, unit, human.id)}. Right-click a tile to send them.`;
         } else {
-          selectedLine.textContent = "Click one of your marchers, then click the ground you want held.";
+          selectedLine.textContent = "Left-click a marcher, or drag a box around several. Right-click to send them.";
         }
 
         const tiles = territoryCount(state, human.id);

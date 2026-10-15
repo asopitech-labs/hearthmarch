@@ -27,14 +27,22 @@
         </div>
       </header>
 
-      <p class="swipe-hint">On a narrow screen, scroll the map sideways.</p>
+      <p class="swipe-hint">Drag the marsh to look around. Pinch, or use the buttons, to zoom.</p>
       <div class="stage">
         <div class="map-scroll">
           <div class="map-frame">
             <canvas
               id="map"
-              aria-label="Reed Marsh. Apricot ground is yours, teal ground is Reedmoor's. Click a marcher, then click a tile."
+              aria-label="Reed Marsh. Apricot ground is yours, teal ground is Reedmoor's. Drag to look around. Left-click selects marchers. Right-click sends them."
             ></canvas>
+            <div class="map-tools">
+              <canvas id="minimap" width="168" height="108" aria-label="Minimap of Reed Marsh. Click to look there."></canvas>
+              <div class="zoom-tools">
+                <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+                <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+                <button id="select-all" type="button">All</button>
+              </div>
+            </div>
           </div>
         </div>
         <div id="curtain" class="curtain" hidden>
@@ -103,8 +111,12 @@
         Water is impassable. Woods slow a march. Standing on a tile claims it. A hearth shelters its
         own people, so a fight on the cottage is harder than a fight in the open. Leave your hearth
         empty and Reedmoor will walk in. Faith comes from the villages, and a hard tax stills it.
-        A rite spends faith: choose it, then click the marsh. Pause with the button or Space. Pace
-        2× hurries the clock.
+        Drag the marsh, or use WASD and the arrow keys, to look around. The wheel and the + − buttons
+        zoom. Click the small map to jump. Left-click or drag a box to select marchers. Shift-click
+        adds one. Right-click sends them, and a dotted path shows the way. On a touch screen, drag
+        to look, pinch to zoom, tap a marcher to select, and tap the ground to send them. Space
+        pauses. F changes the pace. 1, 2, and 3 ready that god's rites. H looks back at your hearth.
+        E selects every marcher you can see. Escape clears the selection.
       </p>
       <p id="status-live" class="sr-only" aria-live="polite">Playing</p>
     </div>

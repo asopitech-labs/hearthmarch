@@ -149,6 +149,44 @@ input:focus-visible {
   touch-action: none;
 }
 
+.map-tools {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.map-tools > * {
+  pointer-events: auto;
+}
+
+#minimap {
+  width: 168px;
+  height: 108px;
+  background: #f3e7d0;
+  border: 2px solid #2f2923;
+  border-radius: 10px 12px 8px 11px;
+  box-shadow: 2px 3px 0 rgba(47, 41, 35, 0.12);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.zoom-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zoom-tools button {
+  min-width: 44px;
+  min-height: 36px;
+  padding: 4px 10px;
+}
+
 .curtain {
   position: absolute;
   inset: 0;
@@ -471,8 +509,9 @@ input[type="range"]::-moz-range-thumb {
     display: block;
   }
 
-  .map-frame {
-    min-width: 840px;
+  #minimap {
+    width: 120px;
+    height: 78px;
   }
 
   h1 {

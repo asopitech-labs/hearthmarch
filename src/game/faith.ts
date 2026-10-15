@@ -217,11 +217,23 @@ export function chooseDivineCast(
 ): { powerId: PowerId; x: number; y: number } | null {
   const kingdom = kingdomById(state, kingdomId);
   if (!kingdom || !kingdom.alive || state.status !== "playing") return null;
-  const order = godById(kingdom.godId).powers.map((power) => power.id).reverse();
+  const affordable = godById(kingdom.godId).powers
+    .map((power) => power.id)
+    .reverse()
+    .filter((powerId) => {
+      const power = powerById(powerId);
+      if (kingdom.faith < power.cost) return false;
+      if ((kingdom.riteWait[powerId] ?? 0) > 0) return false;
+      return true;
+    });
+  // Prefer a rite that leaves enough faith for a small one later, so the
+  // bowl is not emptied by two great rites in a row.
+  const reserved = affordable.filter((powerId) => {
+    const cost = powerById(powerId).cost;
+    return cost === RITE_COST_SMALL || kingdom.faith - cost >= RITE_COST_SMALL;
+  });
+  const order = reserved.length > 0 ? reserved : affordable;
   for (const powerId of order) {
-    const power = powerById(powerId);
-    if (kingdom.faith < power.cost) continue;
-    if ((kingdom.riteWait[powerId] ?? 0) > 0) continue;
     for (const spot of candidates(state, kingdom, powerId)) {
       if (!refuse(state, kingdom, powerId, spot.x, spot.y)) {
         return { powerId, x: spot.x, y: spot.y };
@@ -264,8 +276,11 @@ function candidates(
       .map((tile) => ({ x: tile.x, y: tile.y }));
   }
   if (powerId === "shore") {
+    const home = ownHearth(state, kingdom.id);
     return state.tiles
       .filter((tile) => tile.terrain === "water" && besideLand(state, tile))
+      .sort((a, b) => (home ? manhattan(a, home) - manhattan(b, home) : 0))
+      .slice(0, 16)
       .map((tile) => ({ x: tile.x, y: tile.y }));
   }
   if (powerId === "tremor" || powerId === "cinder") {
@@ -278,7 +293,9 @@ function candidates(
     return state.tiles
       .filter((tile) => tile.terrain === "meadow" && !tile.isHearth)
       .filter((tile) => !hearth || manhattan(tile, hearth) > 2)
+      .filter((tile) => foes.some((unit) => manhattan(tile, unit) <= 12))
       .sort((a, b) => nearestFoe(foes, a) - nearestFoe(foes, b))
+      .slice(0, 12)
       .map((tile) => ({ x: tile.x, y: tile.y }));
   }
   if (powerId === "drain") {

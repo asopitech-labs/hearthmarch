@@ -34,11 +34,50 @@ export function setPathTo(
 }
 
 export function orderUnit(state: GameState, unitId: number, x: number, y: number): boolean {
-  const unit = state.units.find((candidate) => candidate.id === unitId);
-  if (!unit) return false;
-  const kingdom = kingdomById(state, unit.kingdomId);
-  if (!kingdom || kingdom.controlledBy !== "human" || !kingdom.alive) return false;
-  return setPathTo(state, unit, { x, y }, { eager: true });
+  return orderUnits(state, [unitId], x, y) > 0;
+}
+
+/**
+ * Send several marchers toward one tile. They land on that tile and the
+ * open ground beside it, so they do not all try to stand on the same square.
+ */
+export function orderUnits(state: GameState, unitIds: number[], x: number, y: number): number {
+  const tile = getTile(state, x, y);
+  if (!tile || tile.terrain === "water" || state.status !== "playing") return 0;
+  const spots = landingSpots(state, x, y, unitIds.length);
+  let sent = 0;
+  for (let index = 0; index < unitIds.length; index++) {
+    const unit = state.units.find((candidate) => candidate.id === unitIds[index]);
+    if (!unit) continue;
+    const kingdom = kingdomById(state, unit.kingdomId);
+    if (!kingdom || kingdom.controlledBy !== "human" || !kingdom.alive) continue;
+    const spot = spots[index] ?? tile;
+    if (setPathTo(state, unit, spot, { eager: true })) sent += 1;
+  }
+  return sent;
+}
+
+function landingSpots(state: GameState, x: number, y: number, count: number): Tile[] {
+  const spots: Tile[] = [];
+  const seen = new Set<string>([`${x},${y}`]);
+  const queue: Array<{ x: number; y: number }> = [{ x, y }];
+  while (queue.length > 0 && spots.length < count) {
+    const current = queue.shift();
+    if (!current) break;
+    const tile = getTile(state, current.x, current.y);
+    if (tile && tile.terrain !== "water") spots.push(tile);
+    for (const [dx, dy] of DIRS) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const key = `${nx},${ny}`;
+      if (seen.has(key)) continue;
+      const next = getTile(state, nx, ny);
+      if (!next || next.terrain === "water") continue;
+      seen.add(key);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return spots;
 }
 
 export function findSpawnTile(

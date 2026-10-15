@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { STARTING_FAITH } from "../src/game/config.ts";
+import { RITE_COST_SMALL, STARTING_FAITH } from "../src/game/config.ts";
 import {
+  addDawnFaith,
   castPower,
   chooseDivineCast,
+  considerDivine,
   faithGain,
   godById,
 } from "../src/game/faith.ts";
@@ -79,13 +81,14 @@ describe("rites", () => {
 
   it("tangles a meadow with Briar and then rests", () => {
     const state = createSkirmish({ humanGod: "lark" });
-    const meadow = getTile(state, 0, 0)!;
-    expect(meadow.terrain).toBe("meadow");
-    cast(state, "briar", 0, 0);
+    const meadows = state.tiles.filter((tile) => tile.terrain === "meadow" && !tile.isHearth);
+    const meadow = meadows[0]!;
+    const other = meadows[1]!;
+    cast(state, "briar", meadow.x, meadow.y);
     expect(meadow.terrain).toBe("wood");
-    const again = castPower(state, "ashvale", "briar", 0, 2);
+    const again = castPower(state, "ashvale", "briar", other.x, other.y);
     expect(again.ok).toBe(false);
-    expect(getTile(state, 0, 2)?.terrain).toBe("meadow");
+    expect(other.terrain).toBe("meadow");
   });
 
   it("will not sink a hearth", () => {
@@ -99,9 +102,20 @@ describe("rites", () => {
 
   it("lifts a shore, shakes marchers, and scorches a field", () => {
     const state = createSkirmish({ humanGod: "kiln" });
-    const pool = getTile(state, 6, 3)!;
+    const pool = state.tiles.find((tile) => {
+      if (tile.terrain !== "water") return false;
+      return [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ].some(([dx, dy]) => {
+        const next = getTile(state, tile.x + dx!, tile.y + dy!);
+        return !!next && next.terrain !== "water";
+      });
+    })!;
     expect(pool.terrain).toBe("water");
-    cast(state, "shore", 6, 3);
+    cast(state, "shore", pool.x, pool.y);
     expect(pool.terrain).toBe("meadow");
 
     const foe = unitsOf(state, "reedmoor").find((unit) => unit.strength === 10)!;
@@ -110,18 +124,19 @@ describe("rites", () => {
     expect(foe.strength).toBeLessThan(before);
     expect(foe.strength).toBeGreaterThanOrEqual(1);
 
-    const field = getTile(state, 8, 2)!;
-    expect(field.terrain).toBe("meadow");
-    cast(state, "cinder", 8, 2);
+    const field = state.tiles.find((tile) => tile.terrain === "meadow" && !tile.isHearth)!;
+    cast(state, "cinder", field.x, field.y);
     expect(field.terrain).toBe("wood");
     expect(field.isHearth).toBe(false);
   });
 
   it("cuts a meadow, drains water onto your land, and pulls a marcher", () => {
     const state = createSkirmish({ humanGod: "mere" });
-    const owned = state.tiles.find(
-      (tile) => tile.ownerId === "ashvale" && !tile.isHearth && tile.terrain === "meadow",
-    )!;
+    const owned = state.tiles.find((tile) => {
+      if (tile.ownerId !== "ashvale" || tile.isHearth || tile.terrain !== "meadow") return false;
+      const north = getTile(state, tile.x, tile.y - 1);
+      return !!north && north.terrain !== "water";
+    })!;
     const neighbor = getTile(state, owned.x, owned.y - 1);
     expect(neighbor?.terrain).not.toBe("water");
     cast(state, "cut", owned.x, owned.y);
@@ -153,11 +168,12 @@ describe("rites", () => {
 
   it("pushes a marcher off a meadow before the water arrives", () => {
     const state = createSkirmish({ humanGod: "mere" });
-    const militia = unitsOf(state, "ashvale").find((unit) => unit.x === 4 && unit.y === 5)!;
-    cast(state, "cut", militia.x, militia.y);
-    expect(getTile(state, 4, 5)?.terrain).toBe("water");
-    expect(unitAt(state, 4, 5)).toBeUndefined();
-    expect(militia.x !== 4 || militia.y !== 5).toBe(true);
+    const militia = unitsOf(state, "ashvale").find((unit) => unit.strength === 10)!;
+    const from = { x: militia.x, y: militia.y };
+    cast(state, "cut", from.x, from.y);
+    expect(getTile(state, from.x, from.y)?.terrain).toBe("water");
+    expect(unitAt(state, from.x, from.y)).toBeUndefined();
+    expect(militia.x !== from.x || militia.y !== from.y).toBe(true);
   });
 });
 
@@ -173,5 +189,23 @@ describe("the computer's god", () => {
     tick(state, 100);
     expect(reed.faith).toBeLessThan(before);
     expect(reed.faith).toBeLessThan(STARTING_FAITH);
+  });
+
+  it("keeps faith in the bowl so a later morning can still call a rite", () => {
+    const state = createSkirmish({ humanGod: "lark", cpuGod: "kiln" });
+    const reed = kingdomById(state, "reedmoor")!;
+    considerDivine(state, "reedmoor");
+    considerDivine(state, "reedmoor");
+    expect(reed.faith).toBeGreaterThanOrEqual(RITE_COST_SMALL);
+    expect(reed.faith).toBeLessThan(STARTING_FAITH - RITE_COST_SMALL);
+
+    reed.faith = 0;
+    reed.taxRate = 0;
+    reed.population = 40;
+    for (let morning = 0; morning < 4; morning++) addDawnFaith(reed);
+    const filled = reed.faith;
+    expect(filled).toBeGreaterThanOrEqual(RITE_COST_SMALL);
+    considerDivine(state, "reedmoor");
+    expect(reed.faith).toBeLessThan(filled);
   });
 });

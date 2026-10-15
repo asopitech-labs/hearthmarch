@@ -6,6 +6,13 @@ export const LAYOUT = {
   tile: 52,
 };
 
+export function worldSize(mapWidth: number, mapHeight: number): { width: number; height: number } {
+  return {
+    width: LAYOUT.originX + mapWidth * LAYOUT.tile + LAYOUT.originX,
+    height: LAYOUT.originY + mapHeight * LAYOUT.tile + LAYOUT.originY,
+  };
+}
+
 export function tileCenter(x: number, y: number): { x: number; y: number } {
   return {
     x: LAYOUT.originX + (x + 0.5) * LAYOUT.tile,
