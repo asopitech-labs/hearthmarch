@@ -190,9 +190,13 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   const frame = map.parentElement ?? map;
   const liveCanvas = () => document.querySelector<HTMLCanvasElement>("#map") ?? map;
   const fromMap = (event: Event) => event.target === liveCanvas();
-  frame.addEventListener("contextmenu", (event) => {
-    if (fromMap(event)) event.preventDefault();
-  });
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      if (event.target instanceof Node && frame.contains(event.target)) event.preventDefault();
+    },
+    true,
+  );
   document.addEventListener(
     "mousedown",
     (event) => {
