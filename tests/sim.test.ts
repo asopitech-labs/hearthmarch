@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chooseMarchTarget, decideTax, runAi } from "../src/game/ai.ts";
 import { levy, orderUnit, setPathTo, setTax } from "../src/game/commands.ts";
+import { beliefOf } from "../src/game/faith.ts";
 import { DAY_MS, MOVE_MS, SPAWN_AT, WOOD_MOVE_MS } from "../src/game/config.ts";
 import { dailyYield } from "../src/game/economy.ts";
 import { findPath } from "../src/game/path.ts";
@@ -139,6 +140,7 @@ describe("tax and muster", () => {
       alive: true,
       ink: "#888888",
       wash: "rgba(0,0,0,0.2)",
+      ...beliefOf("lark"),
     });
     const corner = getTile(state, 15, 0);
     expect(corner?.terrain).not.toBe("water");
@@ -380,6 +382,7 @@ describe("skirmishes and hearths", () => {
       alive: true,
       ink: "#666666",
       wash: "rgba(0,0,0,0.2)",
+      ...beliefOf("mere"),
     });
     const reedHearth = state.tiles.find((tile) => tile.isHearth && tile.ownerId === "reedmoor")!;
     const player: Unit = {

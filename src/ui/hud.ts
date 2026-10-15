@@ -1,20 +1,25 @@
 import { DAY_MS, LEVY_COST, TAX_MAX } from "../game/config.ts";
 import { canLevy, levy, setTax } from "../game/commands.ts";
 import { dailyYield, taxHint } from "../game/economy.ts";
+import { faithGain, godById, GODS, powerById } from "../game/faith.ts";
 import { getTile, humanKingdom, rivalKingdoms, territoryCount, unitsOf } from "../game/query.ts";
-import type { GameState, Kingdom, Unit } from "../game/types.ts";
+import type { GameState, GodId, Kingdom, PowerId, Unit } from "../game/types.ts";
 
 export interface HudView {
   paused: boolean;
   speed: number;
   selectedId: number | null;
   note: string;
+  armedPower: PowerId | null;
+  choosingGod: boolean;
 }
 
 export interface HudHandlers {
   onPause: () => void;
   onSpeed: () => void;
   onRestart: () => void;
+  onChooseGod: (godId: GodId) => void;
+  onRite: (powerId: PowerId) => void;
 }
 
 function requireElement<T extends Element>(selector: string): T {
@@ -51,6 +56,8 @@ function fillKingdomStats(
   if (tiles) tiles.textContent = String(territoryCount(state, kingdom.id));
   if (units) units.textContent = String(unitsOf(state, kingdom.id).length);
   if (tax) tax.textContent = `${kingdom.taxRate}%`;
+  const faith = root.querySelector(`[data-field="${prefix}-faith"]`);
+  if (faith) faith.textContent = String(Math.floor(kingdom.faith));
 }
 
 export function mountHud(handlers: HudHandlers): {
@@ -63,6 +70,19 @@ export function mountHud(handlers: HudHandlers): {
   const taxInput = requireElement<HTMLInputElement>("#tax");
   const levyButton = requireElement<HTMLButtonElement>("#levy");
   const rivals = requireElement<HTMLElement>("#rivals");
+  const rites = requireElement<HTMLElement>("#rites");
+  const godChoices = requireElement<HTMLElement>("#god-choices");
+  const godGate = requireElement<HTMLElement>("#god-gate");
+
+  for (const god of GODS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "god-choice";
+    button.dataset.god = god.id;
+    button.innerHTML = `<span class="god-name">${god.name}</span><span class="god-title">${god.title}</span><span class="god-creed">${god.creed}</span>`;
+    button.addEventListener("click", () => handlers.onChooseGod(god.id));
+    godChoices.append(button);
+  }
 
   let currentState = (): GameState | null => null;
 
@@ -107,6 +127,7 @@ export function mountHud(handlers: HudHandlers): {
             <div><dt>Villagers</dt><dd data-field="rival-pop"></dd></div>
             <div><dt>Tiles</dt><dd data-field="rival-tiles"></dd></div>
             <div><dt>Marchers</dt><dd data-field="rival-units"></dd></div>
+            <div><dt>Faith</dt><dd data-field="rival-faith"></dd></div>
           </dl>
           <p class="fine" data-field="fate"></p>
         `;
@@ -125,10 +146,42 @@ export function mountHud(handlers: HudHandlers): {
       fillKingdomStats(card, kingdom, state, "rival");
       const fate = card.querySelector("[data-field='fate']");
       if (fate) {
+        const god = godById(kingdom.godId);
         fate.textContent = kingdom.alive
-          ? "They set their own tax, raise marchers, and push toward your hearth."
+          ? `They keep ${god.name}, ${god.title}. They set their own tax and call their own rites.`
           : "Their hearth has fallen.";
       }
+    }
+  }
+
+  function syncRites(state: GameState, human: Kingdom, armed: PowerId | null): void {
+    const god = godById(human.godId);
+    const stamp = god.id;
+    if (rites.dataset.stamp !== stamp) {
+      rites.dataset.stamp = stamp;
+      rites.replaceChildren();
+      for (const power of god.powers) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "rite";
+        button.dataset.power = power.id;
+        button.addEventListener("click", () => handlers.onRite(power.id));
+        rites.append(button);
+      }
+    }
+    for (const power of god.powers) {
+      const button = rites.querySelector<HTMLButtonElement>(`[data-power="${power.id}"]`);
+      if (!button) continue;
+      const wait = human.riteWait[power.id] ?? 0;
+      const cooling = wait > 0;
+      const label = cooling
+        ? `${power.name} · ${Math.ceil(wait / 1000)}s`
+        : `${power.name} · ${power.cost}`;
+      if (button.textContent !== label) button.textContent = label;
+      button.disabled =
+        state.status !== "playing" || !human.alive || cooling || human.faith < power.cost;
+      button.setAttribute("aria-pressed", armed === power.id ? "true" : "false");
+      button.title = power.blurb;
     }
   }
 
@@ -151,6 +204,9 @@ export function mountHud(handlers: HudHandlers): {
           selectedLine.textContent = view.note;
         } else if (unitsOf(state, human.id).length === 0 && state.status === "playing") {
           selectedLine.textContent = "No marchers in the field. Lower the tax, or call a levy, before the hearth stands empty.";
+        } else if (view.armedPower) {
+          const power = powerById(view.armedPower);
+          selectedLine.textContent = `${power.name} is ready. ${power.blurb}`;
         } else if (selected) {
           selectedLine.textContent = `Strength ${selected.strength}, ${placePhrase(state, selected, human.id)}. Click a tile to send them.`;
         } else {
@@ -159,12 +215,14 @@ export function mountHud(handlers: HudHandlers): {
 
         const tiles = territoryCount(state, human.id);
         const gained = dailyYield(tiles, human.taxRate);
+        const prayers = faithGain(human.population, human.taxRate);
         requireElement("#tax-readout").textContent = `${human.taxRate}%`;
         requireElement("#tax-hint").textContent = taxHint(human.taxRate);
         requireElement("#forecast").textContent =
           tiles === 0
             ? "No ground, no dues."
-            : `Each dawn: about +${gained.gold} gold and +${gained.population.toFixed(1)} villagers.`;
+            : `Each dawn: about +${gained.gold} gold, +${gained.population.toFixed(1)} villagers, and +${prayers} faith.`;
+        syncRites(state, human, view.armedPower);
         if (document.activeElement !== taxInput) taxInput.value = String(human.taxRate);
         taxInput.disabled = state.status !== "playing" || !human.alive;
         levyButton.disabled = !canLevy(state, human.id);
@@ -189,7 +247,11 @@ export function mountHud(handlers: HudHandlers): {
       const curtainTitle = requireElement("#curtain-title");
       const curtainCopy = requireElement("#curtain-copy");
       const statusLive = requireElement("#status-live");
-      if (state.status === "playing") {
+      godGate.hidden = !view.choosingGod;
+      if (view.choosingGod) {
+        curtain.hidden = true;
+        statusLive.textContent = "Choose a god";
+      } else if (state.status === "playing") {
         curtain.hidden = true;
         statusLive.textContent = view.paused ? "Paused" : "Playing";
       } else if (state.status === "won") {

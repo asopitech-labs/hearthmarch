@@ -48,6 +48,7 @@ input {
 
 h1,
 h2,
+h3,
 button,
 .dawn,
 dd,
@@ -334,6 +335,80 @@ input[type="range"]::-moz-range-thumb {
   font-family: "Patrick Hand", cursive;
   font-size: 1.25rem;
   margin-top: 4px;
+}
+
+.rites-title {
+  margin-top: 12px;
+  font-size: 1.45rem;
+}
+
+.rites {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.rite {
+  width: 100%;
+  text-align: left;
+  font-size: 1.15rem;
+}
+
+.rite[aria-pressed="true"] {
+  background: #f0c48a;
+}
+
+.god-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(228, 211, 182, 0.82);
+}
+
+.god-gate[hidden] {
+  display: none;
+}
+
+.god-panel {
+  width: min(460px, 100%);
+}
+
+.god-choices {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.god-choice {
+  width: 100%;
+  text-align: left;
+  border-radius: 16px 18px 14px 18px;
+  padding: 10px 14px;
+}
+
+.god-name {
+  display: block;
+  font-family: "Patrick Hand", cursive;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.god-title,
+.god-creed {
+  display: block;
+}
+
+.god-title {
+  font-style: italic;
+  color: #6d5840;
+}
+
+.god-creed {
+  margin-top: 4px;
+  font-size: 0.95rem;
 }
 
 #levy {

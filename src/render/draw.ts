@@ -1,4 +1,4 @@
-import { kingdomById } from "../game/query.ts";
+import { getTile, kingdomById } from "../game/query.ts";
 import type { GameState, Kingdom, Tile } from "../game/types.ts";
 import { LAYOUT, tileCenter } from "./layout.ts";
 
@@ -9,6 +9,8 @@ export interface DrawInput {
   selectedId: number | null;
   hover: { x: number; y: number } | null;
   preview: Array<{ x: number; y: number }> | null;
+  /** Tiles a prepared rite would touch. */
+  riteMarks: Array<{ x: number; y: number }>;
   time: number;
   reduceMotion: boolean;
 }
@@ -459,7 +461,8 @@ function drawFlashes(ctx: CanvasRenderingContext2D, state: GameState): void {
     const t = 1 - Math.max(0, flash.ms) / life;
     ctx.save();
     ctx.globalAlpha = Math.max(0, 1 - t);
-    ctx.strokeStyle = flash.kind === "combat" ? "#a14d45" : INK;
+    ctx.strokeStyle =
+      flash.kind === "combat" ? "#a14d45" : flash.kind === "rite" ? "#c4a15a" : INK;
     ctx.lineWidth = flash.kind === "combat" ? 2 : 1.4;
     sketchCircle(ctx, center.x, center.y, 8 + t * 24, flash.x * 17 + flash.y);
     ctx.stroke();
@@ -486,7 +489,7 @@ function drawFrame(ctx: CanvasRenderingContext2D): void {
 }
 
 export function drawMap(ctx: CanvasRenderingContext2D, input: DrawInput): void {
-  const { state, selectedId, hover, preview, time, reduceMotion } = input;
+  const { state, selectedId, hover, preview, riteMarks, time, reduceMotion } = input;
   if (!paper) paper = buildPaper();
 
   ctx.clearRect(0, 0, LAYOUT.width, LAYOUT.height);
@@ -507,6 +510,14 @@ export function drawMap(ctx: CanvasRenderingContext2D, input: DrawInput): void {
     traceTile(ctx, hover.x, hover.y);
     ctx.strokeStyle = "rgba(47, 41, 35, 0.65)";
     ctx.lineWidth = 1.4;
+    ctx.stroke();
+  }
+
+  for (const mark of riteMarks) {
+    if (!getTile(state, mark.x, mark.y)) continue;
+    traceTile(ctx, mark.x, mark.y);
+    ctx.strokeStyle = "rgba(196, 161, 90, 0.9)";
+    ctx.lineWidth = 1.6;
     ctx.stroke();
   }
 

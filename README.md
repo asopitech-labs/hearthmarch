@@ -26,11 +26,13 @@ npm run build
 
 - Apricot ground is yours. Teal ground is Reedmoor's. Pale ground is unclaimed. Blue strokes are water, and water cannot be crossed. Scribbled canopies are woods, and woods slow a march.
 - Each cottage is a hearth. Capture Reedmoor's hearth to win. If Reedmoor captures yours, you lose.
-- Drag **Tax**. At 0% the villages grow and gold does not. At 30% the coffer fills and the villages stop growing. In between, you get some of each. When a kingdom's villagers reach the muster line, a marcher appears near its hearth.
+- Before the march, choose a god. Lark opens meadows and steadies marchers. Kiln lifts shores and shakes the ground. Mere sinks meadows and pulls marchers toward water. Reedmoor keeps one of the others.
+- Drag **Tax**. At 0% the villages grow and gold does not. At 30% the coffer fills and the villages stop growing. In between, you get some of each. Faith, the prayer you spend on rites, grows with the villages and stops at 30% tax. When a kingdom's villagers reach the muster line, a marcher appears near its hearth.
+- A rite spends faith. Click the rite, then click the marsh. Each rite rests for a few seconds after it lands.
 - **Call a levy** spends gold to raise a marcher immediately.
 - Click one of your marchers, then click a tile. They walk there, around water and around your other marchers, and claim every tile they step on. Stepping onto an enemy marcher starts a skirmish. The stronger side stays, wounded. Equal strength favors whoever already held the tile.
 - A hearth shelters its defender. Fighting on a cottage is harder than fighting in the open.
-- Reedmoor sets its own tax, raises marchers, spreads into open marsh, and pushes toward your hearth. Standing still is a way to lose.
+- Reedmoor sets its own tax, raises marchers, calls its own rites, and pushes toward your hearth. Standing still is a way to lose.
 - Pause with the button or Space. Pace 2× hurries the clock. Start over deals the same marsh again.
 
 Reedmoor's captain keeps the cottage for the first few mornings, then marches. A focused attack is a short skirmish, on the order of a minute or two. Later maps can be much larger. The economy and the kingdom list are what a longer match would stretch.
@@ -41,7 +43,8 @@ Reedmoor's captain keeps the cottage for the first few mornings, then marches. A
 - `src/render` draws the marsh with Canvas 2D. The pencil strokes are unchanged.
 - `src/view` hosts that drawing in [Excalibur](https://excaliburjs.com/) 0.32.0: the frame loop, the camera (zoom 1, focused on this marsh), and pointer coordinates. See `docs/engine-choice.md` for why.
 - `src/ui` is the tax slider and the rest of the page, outside the canvas.
-- `tests` covers the rules, including how a click becomes a selection or an order.
+- `tests` covers the rules, including how a click becomes a selection or an order, and how faith and rites resolve.
+- `docs/gods.md` is the note on where the rites come from and how they fit the tax.
 
 A kingdom is `{ id, controlledBy: "human" | "cpu", ... }`. The match ends when every human kingdom is gone (a loss) or every computer kingdom is gone (a win).
 

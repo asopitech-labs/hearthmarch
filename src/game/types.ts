@@ -1,5 +1,18 @@
 export type Terrain = "meadow" | "wood" | "water";
 
+export type GodId = "lark" | "kiln" | "mere";
+
+export type PowerId =
+  | "seedbed"
+  | "hearthwarm"
+  | "briar"
+  | "shore"
+  | "tremor"
+  | "cinder"
+  | "cut"
+  | "drain"
+  | "undertow";
+
 export type Controller = "human" | "cpu";
 
 export type GameStatus = "playing" | "won" | "lost";
@@ -37,13 +50,21 @@ export interface Kingdom {
   ink: string;
   /** Translucent wash laid over owned ground. */
   wash: string;
+  /** Which set of rites this kingdom can call. */
+  godId: GodId;
+  /** Prayer stored from the villages. Spent on rites. */
+  faith: number;
+  /** Remaining cooldown in milliseconds, keyed by power. */
+  riteWait: Partial<Record<PowerId, number>>;
+  /** Milliseconds until a computer kingdom considers another rite. */
+  riteThinkMs: number;
 }
 
 export interface Flash {
   x: number;
   y: number;
   ms: number;
-  kind: "combat" | "capture" | "spawn";
+  kind: "combat" | "capture" | "spawn" | "rite";
 }
 
 /**

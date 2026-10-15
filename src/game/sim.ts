@@ -7,6 +7,8 @@ import {
   MAX_UNITS,
   MOVE_MS,
   REGEN,
+  RITE_FIRST_MS,
+  RITE_THINK_MS,
   SLICE_MS,
   SPAWN_AT,
   SPAWN_STRENGTH,
@@ -14,10 +16,11 @@ import {
 } from "./config.ts";
 import { setPathTo, trySpawn } from "./commands.ts";
 import { dailyYield } from "./economy.ts";
+import { addDawnFaith, beliefOf, considerDivine, godById, rivalGod } from "./faith.ts";
 import { pushLog } from "./log.ts";
 import { findPath } from "./path.ts";
 import { getTile, kingdomById, territoryCount, unitAt, unitsOf } from "./query.ts";
-import type { GameState, GameStatus, Kingdom, Terrain, Tile, Unit } from "./types.ts";
+import type { GameState, GameStatus, GodId, Kingdom, PowerId, Terrain, Tile, Unit } from "./types.ts";
 
 const ROWS = [
   "....ww......ww..",
@@ -70,7 +73,14 @@ function makeUnit(
   return unit;
 }
 
-export function createSkirmish(): GameState {
+export interface SkirmishOptions {
+  humanGod?: GodId;
+  cpuGod?: GodId;
+}
+
+export function createSkirmish(options?: SkirmishOptions): GameState {
+  const humanGod = options?.humanGod ?? "lark";
+  const cpuGod = options?.cpuGod ?? rivalGod(humanGod);
   const height = ROWS.length;
   const width = ROWS[0]!.length;
   if (ROWS.some((row) => row.length !== width)) {
@@ -114,6 +124,7 @@ export function createSkirmish(): GameState {
       alive: true,
       ink: "#d87a32",
       wash: "rgba(216, 122, 50, 0.4)",
+      ...beliefOf(humanGod, 0),
     },
     {
       id: "reedmoor",
@@ -125,6 +136,7 @@ export function createSkirmish(): GameState {
       alive: true,
       ink: "#2f8f86",
       wash: "rgba(47, 143, 134, 0.38)",
+      ...beliefOf(cpuGod, RITE_FIRST_MS),
     },
   ];
 
@@ -148,7 +160,9 @@ export function createSkirmish(): GameState {
   makeUnit(state, "reedmoor", cpuHearth.x, cpuHearth.y, 13, 90);
   makeUnit(state, "reedmoor", cpuHearth.x - 2, cpuHearth.y, 10, 300);
 
-  pushLog(state, "Ashvale and Reedmoor both claim the reed marsh.");
+  const humanName = godById(humanGod).name;
+  const cpuName = godById(cpuGod).name;
+  pushLog(state, `Ashvale keeps ${humanName}. Reedmoor keeps ${cpuName}.`);
   runAi(state, "reedmoor");
   return state;
 }
@@ -291,6 +305,7 @@ export function applyDawn(state: GameState): void {
 
   for (const kingdom of state.kingdoms) {
     if (!kingdom.alive) continue;
+    addDawnFaith(kingdom);
     const tiles = territoryCount(state, kingdom.id);
     const gained = dailyYield(tiles, kingdom.taxRate);
     kingdom.gold += gained.gold;
@@ -329,6 +344,21 @@ export function applyDawn(state: GameState): void {
   }
 }
 
+function coolRites(state: GameState, dt: number): void {
+  for (const kingdom of state.kingdoms) {
+    for (const key of Object.keys(kingdom.riteWait) as PowerId[]) {
+      const left = (kingdom.riteWait[key] ?? 0) - dt;
+      if (left <= 0) delete kingdom.riteWait[key];
+      else kingdom.riteWait[key] = left;
+    }
+    if (!kingdom.alive || kingdom.controlledBy !== "cpu") continue;
+    kingdom.riteThinkMs -= dt;
+    if (kingdom.riteThinkMs > 0) continue;
+    considerDivine(state, kingdom.id);
+    kingdom.riteThinkMs = RITE_THINK_MS;
+  }
+}
+
 function advance(state: GameState, dt: number): void {
   for (const flash of state.flashes) flash.ms -= dt;
   state.flashes = state.flashes.filter((flash) => flash.ms > 0);
@@ -358,6 +388,7 @@ function advance(state: GameState, dt: number): void {
   }
 
   if (state.status !== "playing") return;
+  coolRites(state, dt);
   state.clockMs += dt;
   while (state.clockMs >= DAY_MS && state.status === "playing") {
     state.clockMs -= DAY_MS;

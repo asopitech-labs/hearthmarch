@@ -58,6 +58,7 @@
             <div><dt>Villagers</dt><dd data-field="player-pop">0</dd></div>
             <div><dt>Tiles</dt><dd data-field="player-tiles">0</dd></div>
             <div><dt>Marchers</dt><dd data-field="player-units">0</dd></div>
+            <div><dt>Faith</dt><dd data-field="player-faith">0</dd></div>
           </dl>
           <p id="player-selected" class="selection">Click one of your marchers, then click the ground you want held.</p>
         </article>
@@ -81,6 +82,8 @@
           <div class="scale"><span>0% villages</span><span>30% coffer</span></div>
           <p id="tax-hint"></p>
           <p id="forecast" class="forecast"></p>
+          <h3 class="rites-title">Rites</h3>
+          <div id="rites" class="rites"></div>
           <button id="levy" type="button">Call a levy (90 gold)</button>
           <p class="fine">
             A levy spends gold at once. Villages muster on their own when the tax is gentle and the
@@ -99,9 +102,20 @@
       <p class="help">
         Water is impassable. Woods slow a march. Standing on a tile claims it. A hearth shelters its
         own people, so a fight on the cottage is harder than a fight in the open. Leave your hearth
-        empty and Reedmoor will walk in. Pause with the button or Space. Pace 2× hurries the clock.
+        empty and Reedmoor will walk in. Faith comes from the villages, and a hard tax stills it.
+        A rite spends faith: choose it, then click the marsh. Pause with the button or Space. Pace
+        2× hurries the clock.
       </p>
       <p id="status-live" class="sr-only" aria-live="polite">Playing</p>
+    </div>
+    <div id="god-gate" class="god-gate">
+      <div class="curtain-card god-panel">
+        <h2>Whose prayers does Ashvale keep?</h2>
+        <p id="god-lede">
+          The god you keep decides which rites your faith can buy. Reedmoor keeps a different one.
+        </p>
+        <div id="god-choices" class="god-choices"></div>
+      </div>
     </div>
     <noscript><p class="sheet">Hearthmarch needs JavaScript to march.</p></noscript>
     <script type="module" src="/src/main.ts"></script>

@@ -11,10 +11,11 @@ import {
 } from "excalibur";
 import { orderUnit } from "../game/commands.ts";
 import { DAY_MS } from "../game/config.ts";
+import { castPower, riteFootprint } from "../game/faith.ts";
 import { findPath } from "../game/path.ts";
 import { getTile, humanKingdom, territoryCount, unitAt, unitsOf } from "../game/query.ts";
 import { createSkirmish, tick } from "../game/sim.ts";
-import type { GameState } from "../game/types.ts";
+import type { GameState, GodId, PowerId } from "../game/types.ts";
 import { drawMap } from "../render/draw.ts";
 import { LAYOUT, tileAtPoint, tileCenter } from "../render/layout.ts";
 import { mountHud } from "../ui/hud.ts";
@@ -30,21 +31,40 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   let hover: { x: number; y: number } | null = null;
   let note = "";
   let noteUntil = 0;
+  let choosingGod = true;
+  let armedPower: PowerId | null = null;
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   const hud = mountHud({
     onPause() {
-      if (state.status === "playing") paused = !paused;
+      if (state.status === "playing" && !choosingGod) paused = !paused;
     },
     onSpeed() {
       speed = speed === 1 ? 2 : 1;
     },
     onRestart() {
-      state = createSkirmish();
+      choosingGod = true;
+      armedPower = null;
       paused = false;
       speed = 1;
       selectedId = null;
       hover = null;
+      note = "";
+    },
+    onChooseGod(godId: GodId) {
+      state = createSkirmish({ humanGod: godId });
+      choosingGod = false;
+      armedPower = null;
+      paused = false;
+      speed = 1;
+      selectedId = null;
+      hover = null;
+      note = "";
+    },
+    onRite(powerId: PowerId) {
+      if (choosingGod || state.status !== "playing") return;
+      armedPower = armedPower === powerId ? null : powerId;
+      if (armedPower) selectedId = null;
       note = "";
     },
   });
@@ -88,6 +108,8 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
         selectedId,
         hover,
         preview: previewPath(),
+        riteMarks:
+          armedPower && hover ? riteFootprint(armedPower, hover.x, hover.y) : [],
         time: performance.now(),
         reduceMotion: motion.matches,
       });
@@ -106,11 +128,11 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     const now = performance.now();
     if (note && now > noteUntil) note = "";
     const dt = Math.min(FRAME_CAP_MS, elapsed);
-    if (!paused && state.status === "playing") tick(state, dt * speed);
+    if (!choosingGod && !paused && state.status === "playing") tick(state, dt * speed);
     if (selectedId !== null && !state.units.some((unit) => unit.id === selectedId)) {
       selectedId = null;
     }
-    hud.update(state, { paused, speed, selectedId, note });
+    hud.update(state, { paused, speed, selectedId, note, armedPower, choosingGod });
   };
   engine.add(board);
 
@@ -125,9 +147,10 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   engine.input.pointers.primary.on("down", (event) => {
     if (event.button === PointerButton.Right) {
       selectedId = null;
+      armedPower = null;
       return;
     }
-    if (event.button !== PointerButton.Left || state.status !== "playing") return;
+    if (choosingGod || event.button !== PointerButton.Left || state.status !== "playing") return;
     const tile = tileAtPoint(event.worldPos.x, event.worldPos.y, state.width, state.height);
     applyClick(tile);
   });
@@ -140,11 +163,13 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   map.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     selectedId = null;
+    armedPower = null;
   });
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       selectedId = null;
+      armedPower = null;
       return;
     }
     const typing =
@@ -175,6 +200,19 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   }
 
   function applyClick(tile: { x: number; y: number } | null): void {
+    if (armedPower) {
+      const human = humanKingdom(state);
+      if (!human || !tile) return;
+      const result = castPower(state, human.id, armedPower, tile.x, tile.y);
+      if (result.ok) {
+        note = "";
+        armedPower = null;
+        return;
+      }
+      note = result.reason;
+      noteUntil = performance.now() + 1700;
+      return;
+    }
     const intent = interpretTileClick(state, selectedId, tile);
     if (intent.kind === "select") {
       selectedId = intent.unitId;
@@ -208,6 +246,8 @@ function snapshot(state: GameState) {
       population: kingdom.population,
       taxRate: kingdom.taxRate,
       alive: kingdom.alive,
+      godId: kingdom.godId,
+      faith: kingdom.faith,
       territory: territoryCount(state, kingdom.id),
       units: unitsOf(state, kingdom.id).length,
     })),

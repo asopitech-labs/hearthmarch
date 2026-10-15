@@ -42,3 +42,31 @@ export const COMBAT_RATIO = 0.65;
 export const LOG_LIMIT = 7;
 
 export const SLICE_MS = 100;
+
+/** Faith a kingdom starts with. Enough for one of each of its rites. */
+export const STARTING_FAITH = 68;
+
+export const FAITH_CAP = 90;
+
+/**
+ * Faith added per villager at 0% tax. The day's tax scales this down,
+ * and 30% tax adds none.
+ */
+export const FAITH_PER_VILLAGER = 0.22;
+
+export const RITE_COOLDOWN_MS = 2800;
+
+/** How often a computer kingdom looks for a rite after the first one. */
+export const RITE_THINK_MS = 4500;
+
+/** Delay before the computer's first rite, so the opening is readable. */
+export const RITE_FIRST_MS = 1600;
+
+export const RITE_COST_SMALL = 12;
+export const RITE_COST_MID = 22;
+export const RITE_COST_GREAT = 34;
+
+export const WARMTH = 4;
+export const WOUND_TREMOR = 3;
+export const WOUND_CINDER = 4;
+export const WOUND_UNDERTOW = 5;
