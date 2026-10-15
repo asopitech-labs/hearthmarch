@@ -132,10 +132,16 @@ input:focus-visible {
   border-radius: 10px;
 }
 
-#map {
+.map-frame {
+  position: relative;
   width: 100%;
-  height: auto;
   aspect-ratio: 960 / 660;
+  background: #f3e7d0;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
   display: block;
   background: #f3e7d0;
   cursor: crosshair;
@@ -390,7 +396,7 @@ input[type="range"]::-moz-range-thumb {
     display: block;
   }
 
-  #map {
+  .map-frame {
     min-width: 840px;
   }
 

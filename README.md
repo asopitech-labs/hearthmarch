@@ -37,10 +37,11 @@ Reedmoor's captain keeps the cottage for the first few mornings, then marches. A
 
 ## Project layout
 
-- `src/game` holds state, economy, pathfinding, combat, capture, and the computer kingdom. It does not touch the page.
-- `src/render` draws the map on a canvas.
-- `src/ui` is the tax slider and the rest of the page.
-- `tests` covers the rules.
+- `src/game` holds state, economy, pathfinding, combat, capture, and the computer kingdom. It does not touch the page or the engine.
+- `src/render` draws the marsh with Canvas 2D. The pencil strokes are unchanged.
+- `src/view` hosts that drawing in [Excalibur](https://excaliburjs.com/) 0.32.0: the frame loop, the camera (zoom 1, focused on this marsh), and pointer coordinates. See `docs/engine-choice.md` for why.
+- `src/ui` is the tax slider and the rest of the page, outside the canvas.
+- `tests` covers the rules, including how a click becomes a selection or an order.
 
 A kingdom is `{ id, controlledBy: "human" | "cpu", ... }`. The match ends when every human kingdom is gone (a loss) or every computer kingdom is gone (a win).
 
