@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Hearthmarch is a hand-drawn strategy game. Set the tax, march your people, and take the rival hearth."
+    />
+    <title>Hearthmarch</title>
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="mast">
+        <div>
+          <p class="eyebrow">Two hearths, one marsh</p>
+          <h1>Hearthmarch</h1>
+          <p class="lede">
+            Set the tax, send your marchers, and take the rival hearth before yours goes quiet.
+          </p>
+        </div>
+        <div class="mast-actions">
+          <button id="pause" type="button" aria-pressed="false">Pause</button>
+          <button id="speed" type="button">Pace 1×</button>
+          <button id="restart" type="button">Start over</button>
+        </div>
+      </header>
+
+      <p class="swipe-hint">On a narrow screen, scroll the map sideways.</p>
+      <div class="stage">
+        <div class="map-scroll">
+          <canvas
+            id="map"
+            aria-label="Reed Marsh. Apricot ground is yours, teal ground is Reedmoor's. Click a marcher, then click a tile."
+          ></canvas>
+        </div>
+        <div id="curtain" class="curtain" hidden>
+          <div class="curtain-card">
+            <h2 id="curtain-title"></h2>
+            <p id="curtain-copy"></p>
+            <button id="curtain-restart" type="button">March again</button>
+          </div>
+        </div>
+      </div>
+
+      <section class="hud">
+        <article class="card" id="player-card">
+          <h2 class="card-title">
+            <span class="swatch" id="player-swatch"></span>
+            <span id="player-name">Ashvale</span>
+          </h2>
+          <p class="role">Your kingdom</p>
+          <dl class="stats">
+            <div><dt>Gold</dt><dd data-field="player-gold">0</dd></div>
+            <div><dt>Villagers</dt><dd data-field="player-pop">0</dd></div>
+            <div><dt>Tiles</dt><dd data-field="player-tiles">0</dd></div>
+            <div><dt>Marchers</dt><dd data-field="player-units">0</dd></div>
+          </dl>
+          <p id="player-selected" class="selection">Click one of your marchers, then click the ground you want held.</p>
+        </article>
+
+        <article class="card" id="tax-card">
+          <div class="tax-head">
+            <h2>Tax</h2>
+            <p class="dawn" id="day-label">Day 1</p>
+          </div>
+          <div class="dawn-track" aria-hidden="true"><div id="dawn-fill"></div></div>
+          <label for="tax">Rate <strong id="tax-readout">10%</strong></label>
+          <input
+            id="tax"
+            type="range"
+            min="0"
+            max="30"
+            step="1"
+            value="10"
+            aria-describedby="tax-hint forecast"
+          />
+          <div class="scale"><span>0% villages</span><span>30% coffer</span></div>
+          <p id="tax-hint"></p>
+          <p id="forecast" class="forecast"></p>
+          <button id="levy" type="button">Call a levy (90 gold)</button>
+          <p class="fine">
+            A levy spends gold at once. Villages muster on their own when the tax is gentle and the
+            population is full. Muster line: 56 villagers.
+          </p>
+        </article>
+
+        <div id="rivals"></div>
+      </section>
+
+      <section class="card log-card">
+        <h2>Field notes</h2>
+        <ol id="log" aria-live="polite"></ol>
+      </section>
+
+      <p class="help">
+        Water is impassable. Woods slow a march. Standing on a tile claims it. A hearth shelters its
+        own people, so a fight on the cottage is harder than a fight in the open. Leave your hearth
+        empty and Reedmoor will walk in. Pause with the button or Space. Pace 2× hurries the clock.
+      </p>
+      <p id="status-live" class="sr-only" aria-live="polite">Playing</p>
+    </div>
+    <noscript><p class="sheet">Hearthmarch needs JavaScript to march.</p></noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

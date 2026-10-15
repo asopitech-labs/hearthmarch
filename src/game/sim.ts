@@ -1,0 +1,376 @@
+import { chooseMarchTarget, runAi } from "./ai.ts";
+import {
+  COMBAT_RATIO,
+  DAY_MS,
+  HEARTH_BONUS,
+  MAX_STRENGTH,
+  MAX_UNITS,
+  MOVE_MS,
+  REGEN,
+  SLICE_MS,
+  SPAWN_AT,
+  SPAWN_STRENGTH,
+  WOOD_MOVE_MS,
+} from "./config.ts";
+import { setPathTo, trySpawn } from "./commands.ts";
+import { dailyYield } from "./economy.ts";
+import { pushLog } from "./log.ts";
+import { findPath } from "./path.ts";
+import { getTile, kingdomById, territoryCount, unitAt, unitsOf } from "./query.ts";
+import type { GameState, GameStatus, Kingdom, Terrain, Tile, Unit } from "./types.ts";
+
+const ROWS = [
+  "....ww......ww..",
+  "...www......www.",
+  "................",
+  "......~~........",
+  "......~~........",
+  "..A...........B.",
+  "......~~........",
+  "......~~........",
+  "...w............",
+  "..........www...",
+  "....ww......ww..",
+];
+
+function claimDisk(
+  tiles: Tile[],
+  origin: { x: number; y: number },
+  kingdomId: string,
+  radius: number,
+): void {
+  for (const tile of tiles) {
+    if (tile.terrain === "water") continue;
+    const distance = Math.abs(tile.x - origin.x) + Math.abs(tile.y - origin.y);
+    if (distance <= radius) tile.ownerId = kingdomId;
+  }
+}
+
+function makeUnit(
+  state: GameState,
+  kingdomId: string,
+  x: number,
+  y: number,
+  strength: number,
+  moveMs: number,
+): Unit {
+  const seq = state.nextSeq++;
+  const unit: Unit = {
+    id: seq,
+    seq,
+    kingdomId,
+    x,
+    y,
+    strength,
+    path: [],
+    moveMs,
+    waitSteps: 0,
+  };
+  state.units.push(unit);
+  return unit;
+}
+
+export function createSkirmish(): GameState {
+  const height = ROWS.length;
+  const width = ROWS[0]!.length;
+  if (ROWS.some((row) => row.length !== width)) {
+    throw new Error("Map rows must be rectangular");
+  }
+
+  const tiles: Tile[] = [];
+  let playerHearth = { x: 0, y: 0 };
+  let cpuHearth = { x: 0, y: 0 };
+
+  for (let y = 0; y < height; y++) {
+    const row = ROWS[y]!;
+    for (let x = 0; x < width; x++) {
+      const symbol = row[x]!;
+      let terrain: Terrain = "meadow";
+      let isHearth = false;
+      if (symbol === "w") terrain = "wood";
+      else if (symbol === "~") terrain = "water";
+      else if (symbol === "A") {
+        isHearth = true;
+        playerHearth = { x, y };
+      } else if (symbol === "B") {
+        isHearth = true;
+        cpuHearth = { x, y };
+      }
+      tiles.push({ x, y, terrain, ownerId: null, isHearth });
+    }
+  }
+
+  claimDisk(tiles, playerHearth, "ashvale", 2);
+  claimDisk(tiles, cpuHearth, "reedmoor", 2);
+
+  const kingdoms: Kingdom[] = [
+    {
+      id: "ashvale",
+      name: "Ashvale",
+      controlledBy: "human",
+      gold: 30,
+      population: 18,
+      taxRate: 10,
+      alive: true,
+      ink: "#d87a32",
+      wash: "rgba(216, 122, 50, 0.4)",
+    },
+    {
+      id: "reedmoor",
+      name: "Reedmoor",
+      controlledBy: "cpu",
+      gold: 30,
+      population: 18,
+      taxRate: 10,
+      alive: true,
+      ink: "#2f8f86",
+      wash: "rgba(47, 143, 134, 0.38)",
+    },
+  ];
+
+  const state: GameState = {
+    width,
+    height,
+    tiles,
+    kingdoms,
+    units: [],
+    day: 1,
+    clockMs: 0,
+    status: "playing",
+    winnerId: null,
+    log: [],
+    flashes: [],
+    nextSeq: 1,
+  };
+
+  makeUnit(state, "ashvale", playerHearth.x, playerHearth.y, 13, 0);
+  makeUnit(state, "ashvale", playerHearth.x + 2, playerHearth.y, 10, 220);
+  makeUnit(state, "reedmoor", cpuHearth.x, cpuHearth.y, 13, 90);
+  makeUnit(state, "reedmoor", cpuHearth.x - 2, cpuHearth.y, 10, 300);
+
+  pushLog(state, "Ashvale and Reedmoor both claim the reed marsh.");
+  runAi(state, "reedmoor");
+  return state;
+}
+
+export function judge(state: GameState): GameStatus {
+  const humans = state.kingdoms.filter((kingdom) => kingdom.controlledBy === "human");
+  const rivals = state.kingdoms.filter((kingdom) => kingdom.controlledBy === "cpu");
+  if (humans.length > 0 && humans.every((kingdom) => !kingdom.alive)) return "lost";
+  if (rivals.length > 0 && rivals.every((kingdom) => !kingdom.alive)) return "won";
+  return "playing";
+}
+
+function defeat(state: GameState, loserId: string, winnerId: string): void {
+  const loser = kingdomById(state, loserId);
+  const winner = kingdomById(state, winnerId);
+  if (!loser || !winner || !loser.alive) return;
+  loser.alive = false;
+  const seized = loser.gold;
+  loser.gold = 0;
+  winner.gold += seized;
+  for (const tile of state.tiles) {
+    if (tile.ownerId === loserId) tile.ownerId = winnerId;
+  }
+  state.units = state.units.filter((unit) => unit.kingdomId !== loserId);
+  pushLog(state, `${winner.name} takes the hearth of ${loser.name} and ${seized} gold.`);
+  state.status = judge(state);
+  if (state.status !== "playing") state.winnerId = winner.id;
+}
+
+function capture(state: GameState, unit: Unit, tile: Tile): void {
+  if (tile.terrain === "water" || tile.ownerId === unit.kingdomId) return;
+  const previous = tile.ownerId;
+  const kingdom = kingdomById(state, unit.kingdomId);
+  if (!kingdom) return;
+  tile.ownerId = unit.kingdomId;
+  state.flashes.push({ x: tile.x, y: tile.y, ms: 560, kind: "capture" });
+
+  if (tile.isHearth && previous) {
+    const loser = kingdomById(state, previous);
+    if (loser?.alive) defeat(state, previous, kingdom.id);
+    return;
+  }
+
+  if (previous) {
+    const other = kingdomById(state, previous);
+    pushLog(state, `${kingdom.name} takes ground from ${other?.name ?? "a neighbor"}.`);
+  } else if (kingdom.controlledBy === "human") {
+    pushLog(state, `${kingdom.name} claims a patch of open marsh.`);
+  }
+}
+
+function removeUnit(state: GameState, unit: Unit): void {
+  const index = state.units.findIndex((other) => other.id === unit.id);
+  if (index >= 0) state.units.splice(index, 1);
+}
+
+function fight(
+  state: GameState,
+  attacker: Unit,
+  defender: Unit,
+  tile: Tile,
+): "attacker" | "defender" {
+  const homeBonus = tile.isHearth && tile.ownerId === defender.kingdomId ? HEARTH_BONUS : 0;
+  const defense = defender.strength + homeBonus;
+  state.flashes.push({ x: tile.x, y: tile.y, ms: 820, kind: "combat" });
+  const attackerKingdom = kingdomById(state, attacker.kingdomId);
+  const defenderKingdom = kingdomById(state, defender.kingdomId);
+  const attackerName = attackerKingdom?.name ?? "A marcher";
+  const defenderName = defenderKingdom?.name ?? "A marcher";
+
+  if (attacker.strength > defense) {
+    attacker.strength = Math.max(1, Math.round(attacker.strength - defense * COMBAT_RATIO));
+    removeUnit(state, defender);
+    pushLog(state, `${attackerName} breaks ${defenderName} in a skirmish.`);
+    return "attacker";
+  }
+
+  defender.strength = Math.max(1, Math.round(defender.strength - attacker.strength * COMBAT_RATIO));
+  removeUnit(state, attacker);
+  pushLog(state, `${defenderName} holds against ${attackerName}.`);
+  return "defender";
+}
+
+function onIdle(state: GameState, unit: Unit): void {
+  if (!state.units.includes(unit) || unit.path.length > 0 || state.status !== "playing") return;
+  const kingdom = kingdomById(state, unit.kingdomId);
+  if (!kingdom || kingdom.controlledBy !== "cpu" || !kingdom.alive) return;
+  const dest = chooseMarchTarget(state, unit);
+  if (!dest || (dest.x === unit.x && dest.y === unit.y)) return;
+  setPathTo(state, unit, dest);
+}
+
+function stepUnit(state: GameState, unit: Unit): void {
+  if (!state.units.includes(unit) || unit.path.length === 0) return;
+  const next = unit.path[0];
+  if (!next) return;
+  const tile = getTile(state, next.x, next.y);
+  if (!tile || tile.terrain === "water") {
+    unit.path = [];
+    return;
+  }
+
+  const occupant = unitAt(state, next.x, next.y);
+  if (occupant && occupant.id !== unit.id && occupant.kingdomId === unit.kingdomId) {
+    unit.waitSteps += 1;
+    if (unit.waitSteps >= 2) {
+      const dest = unit.path[unit.path.length - 1];
+      unit.path = dest ? (findPath(state, unit, dest) ?? []) : [];
+      unit.waitSteps = 0;
+    }
+    return;
+  }
+
+  unit.waitSteps = 0;
+  if (occupant && occupant.kingdomId !== unit.kingdomId) {
+    const result = fight(state, unit, occupant, tile);
+    if (result !== "attacker" || !state.units.includes(unit) || state.status !== "playing") {
+      if (state.units.includes(unit)) unit.path = [];
+      return;
+    }
+    unit.path.shift();
+    unit.x = tile.x;
+    unit.y = tile.y;
+    capture(state, unit, tile);
+    if (state.status === "playing") onIdle(state, unit);
+    return;
+  }
+
+  unit.path.shift();
+  unit.x = tile.x;
+  unit.y = tile.y;
+  capture(state, unit, tile);
+  if (state.status === "playing") onIdle(state, unit);
+}
+
+/** Pay taxes, grow villages, muster marchers, and let each computer kingdom think. */
+export function applyDawn(state: GameState): void {
+  if (state.status !== "playing") return;
+  state.day += 1;
+
+  for (const kingdom of state.kingdoms) {
+    if (!kingdom.alive) continue;
+    const tiles = territoryCount(state, kingdom.id);
+    const gained = dailyYield(tiles, kingdom.taxRate);
+    kingdom.gold += gained.gold;
+
+    for (const unit of unitsOf(state, kingdom.id)) {
+      const tile = getTile(state, unit.x, unit.y);
+      if (tile && tile.ownerId === kingdom.id && unit.strength < MAX_STRENGTH) {
+        unit.strength += REGEN;
+      }
+    }
+
+    if (unitsOf(state, kingdom.id).length >= MAX_UNITS) {
+      kingdom.population = Math.min(kingdom.population, SPAWN_AT - 1);
+    } else {
+      kingdom.population += gained.population;
+      while (
+        kingdom.population >= SPAWN_AT &&
+        unitsOf(state, kingdom.id).length < MAX_UNITS &&
+        state.status === "playing"
+      ) {
+        const spawned = trySpawn(state, kingdom.id, SPAWN_STRENGTH);
+        if (!spawned) {
+          kingdom.population = Math.min(kingdom.population, SPAWN_AT);
+          break;
+        }
+        kingdom.population -= SPAWN_AT;
+        pushLog(state, `${kingdom.name} musters a marcher from the villages.`);
+        state.flashes.push({ x: spawned.x, y: spawned.y, ms: 720, kind: "spawn" });
+      }
+    }
+  }
+
+  if (state.status !== "playing") return;
+  for (const kingdom of state.kingdoms) {
+    if (kingdom.alive && kingdom.controlledBy === "cpu") runAi(state, kingdom.id);
+  }
+}
+
+function advance(state: GameState, dt: number): void {
+  for (const flash of state.flashes) flash.ms -= dt;
+  state.flashes = state.flashes.filter((flash) => flash.ms > 0);
+  if (state.status !== "playing") return;
+
+  const movers = state.units.slice().sort((a, b) => a.seq - b.seq);
+  for (const unit of movers) {
+    if (state.status !== "playing") return;
+    if (!state.units.includes(unit)) continue;
+    const kingdom = kingdomById(state, unit.kingdomId);
+    if (!kingdom?.alive) continue;
+
+    const next = unit.path[0];
+    const nextTile = next ? getTile(state, next.x, next.y) : null;
+    const interval = nextTile?.terrain === "wood" ? WOOD_MOVE_MS : MOVE_MS;
+    unit.moveMs += dt;
+
+    if (unit.path.length === 0) {
+      unit.moveMs = Math.min(unit.moveMs, interval);
+      continue;
+    }
+
+    if (unit.moveMs >= interval) {
+      unit.moveMs -= interval;
+      stepUnit(state, unit);
+    }
+  }
+
+  if (state.status !== "playing") return;
+  state.clockMs += dt;
+  while (state.clockMs >= DAY_MS && state.status === "playing") {
+    state.clockMs -= DAY_MS;
+    applyDawn(state);
+  }
+}
+
+export function tick(state: GameState, dtMs: number): void {
+  if (!(dtMs > 0) || state.status !== "playing") return;
+  let left = dtMs;
+  while (left > 0 && state.status === "playing") {
+    const slice = Math.min(SLICE_MS, left);
+    advance(state, slice);
+    left -= slice;
+  }
+}
