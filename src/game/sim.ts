@@ -16,7 +16,7 @@ import {
 } from "./config.ts";
 import { setPathTo, trySpawn } from "./commands.ts";
 import { dailyYield } from "./economy.ts";
-import { addDawnFaith, beliefOf, considerDivine, godById, rivalGod } from "./faith.ts";
+import { addDawnFaith, beliefOf, considerDivine, rivalGod } from "./faith.ts";
 import { pushLog } from "./log.ts";
 import { buildMarsh } from "./map.ts";
 import { findPath } from "./path.ts";
@@ -124,9 +124,7 @@ export function createSkirmish(options?: SkirmishOptions): GameState {
   makeUnit(state, "reedmoor", cpuHearth.x, cpuHearth.y, 13, 90);
   makeUnit(state, "reedmoor", cpuHearth.x - 2, cpuHearth.y, 10, 300);
 
-  const humanName = godById(humanGod).name;
-  const cpuName = godById(cpuGod).name;
-  pushLog(state, `Ashvale keeps ${humanName}. Reedmoor keeps ${cpuName}.`);
+  pushLog(state, "log.keeps", { human: "ashvale", humanGod, cpu: "reedmoor", cpuGod });
   runAi(state, "reedmoor");
   return state;
 }
@@ -151,7 +149,7 @@ function defeat(state: GameState, loserId: string, winnerId: string): void {
     if (tile.ownerId === loserId) tile.ownerId = winnerId;
   }
   state.units = state.units.filter((unit) => unit.kingdomId !== loserId);
-  pushLog(state, `${winner.name} takes the hearth of ${loser.name} and ${seized} gold.`);
+  pushLog(state, "log.hearth", { winner: winner.id, loser: loser.id, gold: seized });
   state.status = judge(state);
   if (state.status !== "playing") state.winnerId = winner.id;
 }
@@ -172,9 +170,9 @@ function capture(state: GameState, unit: Unit, tile: Tile): void {
 
   if (previous) {
     const other = kingdomById(state, previous);
-    pushLog(state, `${kingdom.name} takes ground from ${other?.name ?? "a neighbor"}.`);
+    pushLog(state, "log.ground", { kingdom: kingdom.id, other: other?.id ?? "neighbor" });
   } else if (kingdom.controlledBy === "human") {
-    pushLog(state, `${kingdom.name} claims a patch of open marsh.`);
+    pushLog(state, "log.claim", { kingdom: kingdom.id });
   }
 }
 
@@ -194,19 +192,19 @@ function fight(
   state.flashes.push({ x: tile.x, y: tile.y, ms: 820, kind: "combat" });
   const attackerKingdom = kingdomById(state, attacker.kingdomId);
   const defenderKingdom = kingdomById(state, defender.kingdomId);
-  const attackerName = attackerKingdom?.name ?? "A marcher";
-  const defenderName = defenderKingdom?.name ?? "A marcher";
+  const attackerId = attackerKingdom?.id ?? "marcher";
+  const defenderId = defenderKingdom?.id ?? "marcher";
 
   if (attacker.strength > defense) {
     attacker.strength = Math.max(1, Math.round(attacker.strength - defense * COMBAT_RATIO));
     removeUnit(state, defender);
-    pushLog(state, `${attackerName} breaks ${defenderName} in a skirmish.`);
+    pushLog(state, "log.break", { attacker: attackerId, defender: defenderId });
     return "attacker";
   }
 
   defender.strength = Math.max(1, Math.round(defender.strength - attacker.strength * COMBAT_RATIO));
   removeUnit(state, attacker);
-  pushLog(state, `${defenderName} holds against ${attackerName}.`);
+  pushLog(state, "log.hold", { defender: defenderId, attacker: attackerId });
   return "defender";
 }
 
@@ -296,7 +294,7 @@ export function applyDawn(state: GameState): void {
           break;
         }
         kingdom.population -= SPAWN_AT;
-        pushLog(state, `${kingdom.name} musters a marcher from the villages.`);
+        pushLog(state, "log.muster", { kingdom: kingdom.id });
         state.flashes.push({ x: spawned.x, y: spawned.y, ms: 720, kind: "spawn" });
       }
     }

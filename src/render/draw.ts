@@ -1,5 +1,6 @@
 import { getTile, kingdomById } from "../game/query.ts";
 import type { GameState, Kingdom, Tile } from "../game/types.ts";
+import { canvasFont, t } from "../i18n/locale.ts";
 import type { Camera } from "../view/camera.ts";
 import { visibleWorldRect } from "../view/camera.ts";
 import { LAYOUT, tileCenter, worldSize } from "./layout.ts";
@@ -447,7 +448,7 @@ function drawMarcher(
   ctx.fill();
   ctx.stroke();
 
-  ctx.font = "15px 'Patrick Hand', cursive";
+  ctx.font = canvasFont(15);
   ctx.fillStyle = INK;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
@@ -727,13 +728,13 @@ function paintChrome(ctx: CanvasRenderingContext2D, input: DrawInput): void {
     ctx.restore();
   }
   ctx.fillStyle = INK;
-  ctx.font = "28px 'Patrick Hand', cursive";
+  ctx.font = canvasFont(28);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("Reed Marsh", 26, 40);
+  ctx.fillText(t("map.name"), 26, 40);
   ctx.textAlign = "right";
-  ctx.font = "22px 'Patrick Hand', cursive";
-  ctx.fillText(`Day ${input.state.day}`, LAYOUT.width - 26, 40);
+  ctx.font = canvasFont(22);
+  ctx.fillText(t("day.label", { day: input.state.day }), LAYOUT.width - 26, 40);
   ctx.textAlign = "left";
 }
 

@@ -67,7 +67,7 @@ describe("interpretOrderClick", () => {
     const water = state.tiles.find((tile) => tile.terrain === "water");
     if (!water) throw new Error("the marsh has no water");
     const intent = interpretOrderClick(state, [captain.id], { x: water.x, y: water.y });
-    expect(intent).toEqual({ kind: "note", text: POINTER_NOTES.water });
+    expect(intent).toEqual({ kind: "note", notice: POINTER_NOTES.water });
     expect(orderUnits(state, [captain.id], water.x, water.y)).toBe(0);
   });
 
@@ -84,7 +84,7 @@ describe("interpretOrderClick", () => {
       tile.terrain = "water";
     }
     const intent = interpretOrderClick(state, [captain.id], pocket);
-    expect(intent).toEqual({ kind: "note", text: POINTER_NOTES.blocked });
+    expect(intent).toEqual({ kind: "note", notice: POINTER_NOTES.blocked });
     expect(orderUnits(state, [captain.id], pocket.x, pocket.y)).toBe(0);
   });
 

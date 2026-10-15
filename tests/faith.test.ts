@@ -26,7 +26,7 @@ function wood(state: GameState) {
 
 function cast(state: GameState, powerId: PowerId, x: number, y: number) {
   const result = castPower(state, "ashvale", powerId, x, y);
-  expect(result.ok, "reason" in result ? result.reason : "").toBe(true);
+  expect(result.ok, "notice" in result ? result.notice.key : "").toBe(true);
 }
 
 describe("faith and the tax", () => {

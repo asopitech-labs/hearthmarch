@@ -537,3 +537,46 @@ input[type="range"]::-moz-range-thumb {
     justify-content: flex-start;
   }
 }
+
+html:not([data-i18n="ready"]) .i18n-hold {
+  visibility: hidden;
+}
+
+html[lang="ja"] body {
+  font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+}
+
+html[lang="ja"] h1,
+html[lang="ja"] h2,
+html[lang="ja"] h3,
+html[lang="ja"] button,
+html[lang="ja"] .dawn,
+html[lang="ja"] dd,
+html[lang="ja"] #tax-readout,
+html[lang="ja"] .god-name,
+html[lang="ja"] .forecast {
+  font-family: Yomogi, "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", cursive;
+}
+
+html[lang="ja"] h1 {
+  font-size: 3.4rem;
+}
+
+html[lang="ja"] .eyebrow {
+  text-transform: none;
+  letter-spacing: 0.06em;
+}
+
+html[lang="ja"] .help,
+html[lang="ja"] .god-creed,
+html[lang="ja"] .fine,
+html[lang="ja"] .selection,
+html[lang="ja"] .lede {
+  line-height: 1.7;
+}
+
+@media (max-width: 860px) {
+  html[lang="ja"] h1 {
+    font-size: 2.6rem;
+  }
+}

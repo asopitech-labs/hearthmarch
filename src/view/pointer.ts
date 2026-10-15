@@ -1,5 +1,6 @@
 import { findPath } from "../game/path.ts";
 import { getTile, humanKingdom, unitAt } from "../game/query.ts";
+import type { Notice } from "../game/speech.ts";
 import type { GameState } from "../game/types.ts";
 
 export interface TilePoint {
@@ -8,9 +9,9 @@ export interface TilePoint {
 }
 
 export const POINTER_NOTES = {
-  water: "Water keeps its own counsel.",
-  blocked: "No path there.",
-} as const;
+  water: { key: "note.water" },
+  blocked: { key: "note.blocked" },
+} as const satisfies Record<string, Notice>;
 
 /**
  * Left click selects one of your marchers, or clears the selection on open ground.
@@ -39,13 +40,13 @@ export function interpretOrderClick(
   state: GameState,
   selectedIds: number[],
   tile: TilePoint | null,
-): { kind: "order"; x: number; y: number } | { kind: "note"; text: string } | { kind: "none" } {
+): { kind: "order"; x: number; y: number } | { kind: "note"; notice: Notice } | { kind: "none" } {
   if (!tile || state.status !== "playing" || selectedIds.length === 0) return { kind: "none" };
   const human = humanKingdom(state);
   if (!human?.alive) return { kind: "none" };
   const ground = getTile(state, tile.x, tile.y);
   if (!ground || ground.terrain === "water") {
-    return { kind: "note", text: POINTER_NOTES.water };
+    return { kind: "note", notice: POINTER_NOTES.water };
   }
   const selected = selectedIds
     .map((id) => state.units.find((unit) => unit.id === id))
@@ -56,6 +57,6 @@ export function interpretOrderClick(
     if (unit.x === tile.x && unit.y === tile.y) return true;
     return findPath(state, unit, tile) !== null;
   });
-  if (!reachable) return { kind: "note", text: POINTER_NOTES.blocked };
+  if (!reachable) return { kind: "note", notice: POINTER_NOTES.blocked };
   return { kind: "order", x: tile.x, y: tile.y };
 }

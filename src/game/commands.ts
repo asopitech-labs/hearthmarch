@@ -147,7 +147,7 @@ export function levy(state: GameState, kingdomId: string): boolean {
     kingdom.gold += LEVY_COST;
     return false;
   }
-  pushLog(state, `${kingdom.name} calls a levy.`);
+  pushLog(state, "log.levy", { kingdom: kingdom.id });
   state.flashes.push({ x: unit.x, y: unit.y, ms: 720, kind: "spawn" });
   return true;
 }

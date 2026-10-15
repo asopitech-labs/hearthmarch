@@ -15,6 +15,8 @@ npm run dev
 
 Open http://127.0.0.1:43123
 
+The page follows the browser language: Japanese when a language starts with `ja`, English otherwise. The **日本語** / **English** button switches live and remembers the choice in this browser. Names are listed in `docs/terms.md`.
+
 ```bash
 npm test
 npm run build
@@ -40,7 +42,8 @@ Reedmoor's captain keeps the cottage for the first stretch of mornings, then mar
 
 ## Project layout
 
-- `src/game` holds state, economy, pathfinding, combat, capture, and the computer kingdom. It does not touch the page or the engine.
+- `src/game` holds state, economy, pathfinding, combat, capture, and the computer kingdom. It does not touch the page or the engine. Log lines and refusals are ids, not sentences.
+- `src/i18n` holds the English and Japanese catalogs, and the language button's memory.
 - `src/render` draws the marsh with Canvas 2D. Terrain is cached and patched when a tile changes; each frame blits the visible region and redraws marchers, paths, and waves.
 - `src/view` hosts that drawing in [Excalibur](https://excaliburjs.com/) 0.32.0: the frame loop, pan and zoom, the minimap, and pointer coordinates. See `docs/engine-choice.md` and `docs/controls.md`.
 - `src/ui` is the tax slider and the rest of the page, outside the canvas.

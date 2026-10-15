@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampTax, dailyYield, taxHint } from "../src/game/economy.ts";
+import { clampTax, dailyYield, taxBand } from "../src/game/economy.ts";
 
 describe("dailyYield", () => {
   it("gives villagers and no gold at 0%", () => {
@@ -39,10 +39,13 @@ describe("dailyYield", () => {
   });
 });
 
-describe("taxHint", () => {
-  it("describes the low, middle, and high bands", () => {
-    expect(taxHint(0)).toMatch(/villages/i);
-    expect(taxHint(12)).toMatch(/measured/i);
-    expect(taxHint(30)).toMatch(/coffer/i);
+describe("taxBand", () => {
+  it("splits the rate into gentle, measured, and hard", () => {
+    expect(taxBand(0)).toBe("gentle");
+    expect(taxBand(8)).toBe("gentle");
+    expect(taxBand(9)).toBe("measured");
+    expect(taxBand(18)).toBe("measured");
+    expect(taxBand(19)).toBe("hard");
+    expect(taxBand(30)).toBe("hard");
   });
 });

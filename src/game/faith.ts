@@ -17,100 +17,42 @@ import {
 import { clampTax } from "./economy.ts";
 import { pushLog } from "./log.ts";
 import { DIRS, getTile, kingdomById, manhattan, unitAt, unitsOf } from "./query.ts";
+import type { Notice } from "./speech.ts";
 import type { GameState, GodId, Kingdom, PowerId, Tile, Unit } from "./types.ts";
 
 export interface GodDef {
   id: GodId;
-  name: string;
-  title: string;
-  creed: string;
   powers: PowerDef[];
 }
 
 export interface PowerDef {
   id: PowerId;
-  name: string;
   cost: number;
-  blurb: string;
 }
 
 export const GODS: readonly GodDef[] = [
   {
     id: "lark",
-    name: "Lark",
-    title: "the Open Hand",
-    creed: "Meadows open, marchers take heart, and thorns slow a road.",
     powers: [
-      {
-        id: "seedbed",
-        name: "Seedbed",
-        cost: RITE_COST_SMALL,
-        blurb: "A wood becomes meadow.",
-      },
-      {
-        id: "hearthwarm",
-        name: "Hearthwarm",
-        cost: RITE_COST_MID,
-        blurb: "One of your marchers grows stronger.",
-      },
-      {
-        id: "briar",
-        name: "Briar",
-        cost: RITE_COST_GREAT,
-        blurb: "A meadow grows into slowing wood.",
-      },
+      { id: "seedbed", cost: RITE_COST_SMALL },
+      { id: "hearthwarm", cost: RITE_COST_MID },
+      { id: "briar", cost: RITE_COST_GREAT },
     ],
   },
   {
     id: "kiln",
-    name: "Kiln",
-    title: "the Warm Stone",
-    creed: "Water becomes ground, the marsh shakes, and a field can burn to scrub.",
     powers: [
-      {
-        id: "shore",
-        name: "Shore",
-        cost: RITE_COST_SMALL,
-        blurb: "Water beside land becomes meadow.",
-      },
-      {
-        id: "tremor",
-        name: "Tremor",
-        cost: RITE_COST_MID,
-        blurb: "Marchers nearby are shaken, and the center meadow turns to wood.",
-      },
-      {
-        id: "cinder",
-        name: "Cinder",
-        cost: RITE_COST_GREAT,
-        blurb: "A patch scorches to wood and burns enemy marchers.",
-      },
+      { id: "shore", cost: RITE_COST_SMALL },
+      { id: "tremor", cost: RITE_COST_MID },
+      { id: "cinder", cost: RITE_COST_GREAT },
     ],
   },
   {
     id: "mere",
-    name: "Mere",
-    title: "the Still Water",
-    creed: "A meadow can sink, a pool can be claimed, and a marcher can be drawn toward the deep.",
     powers: [
-      {
-        id: "cut",
-        name: "Cut",
-        cost: RITE_COST_SMALL,
-        blurb: "A meadow sinks into water. Anyone standing there is pushed aside.",
-      },
-      {
-        id: "drain",
-        name: "Drain",
-        cost: RITE_COST_MID,
-        blurb: "Water touching your land becomes meadow you hold.",
-      },
-      {
-        id: "undertow",
-        name: "Undertow",
-        cost: RITE_COST_GREAT,
-        blurb: "An enemy marcher in the open is pulled toward water, or wounded if they cannot move.",
-      },
+      { id: "cut", cost: RITE_COST_SMALL },
+      { id: "drain", cost: RITE_COST_MID },
+      { id: "undertow", cost: RITE_COST_GREAT },
     ],
   },
 ];
@@ -169,7 +111,7 @@ export function riteFootprint(powerId: PowerId, x: number, y: number): Array<{ x
 
 export interface CastFailure {
   ok: false;
-  reason: string;
+  notice: Notice;
 }
 
 export interface CastSuccess {
@@ -185,25 +127,25 @@ export function castPower(
 ): CastSuccess | CastFailure {
   const kingdom = kingdomById(state, kingdomId);
   if (!kingdom || !kingdom.alive || state.status !== "playing") {
-    return { ok: false, reason: "The prayer has nowhere to land." };
+    return { ok: false, notice: { key: "notice.nowhere" } };
   }
   const power = powerById(powerId);
   if (power.godId !== kingdom.godId) {
-    return { ok: false, reason: `${godById(kingdom.godId).name} does not answer that rite.` };
+    return { ok: false, notice: { key: "notice.wrongGod", args: { god: kingdom.godId } } };
   }
   const wait = kingdom.riteWait[powerId] ?? 0;
   if (wait > 0) {
-    return { ok: false, reason: `${power.name} is still settling.` };
+    return { ok: false, notice: { key: "notice.settling", args: { power: powerId } } };
   }
   if (kingdom.faith < power.cost) {
-    return { ok: false, reason: `${power.name} wants ${power.cost} faith.` };
+    return { ok: false, notice: { key: "notice.cost", args: { power: powerId, cost: power.cost } } };
   }
-  const reason = refuse(state, kingdom, powerId, x, y);
-  if (reason) return { ok: false, reason };
+  const notice = refuse(state, kingdom, powerId, x, y);
+  if (notice) return { ok: false, notice };
   applyRite(state, kingdom, powerId, x, y);
   kingdom.faith -= power.cost;
   kingdom.riteWait[powerId] = RITE_COOLDOWN_MS;
-  pushLog(state, `${kingdom.name} calls ${power.name}.`);
+  pushLog(state, "log.rite", { kingdom: kingdom.id, power: powerId });
   for (const spot of riteFootprint(powerId, x, y)) {
     if (!getTile(state, spot.x, spot.y)) continue;
     state.flashes.push({ x: spot.x, y: spot.y, ms: 640, kind: "rite" });
@@ -314,27 +256,27 @@ function refuse(
   powerId: PowerId,
   x: number,
   y: number,
-): string | null {
+): Notice | null {
   const tile = getTile(state, x, y);
-  if (!tile) return "That is off the marsh.";
+  if (!tile) return { key: "notice.offMarsh" };
   if (powerId === "seedbed") {
-    if (tile.terrain !== "wood") return "Seedbed wants a wood.";
+    if (tile.terrain !== "wood") return { key: "notice.seedbedWood" };
     return null;
   }
   if (powerId === "hearthwarm") {
     const unit = unitAt(state, x, y);
-    if (!unit || unit.kingdomId !== kingdom.id) return "Hearthwarm wants one of your marchers.";
-    if (unit.strength >= MAX_STRENGTH) return "That marcher is already as strong as they can be.";
+    if (!unit || unit.kingdomId !== kingdom.id) return { key: "notice.hearthwarmOwn" };
+    if (unit.strength >= MAX_STRENGTH) return { key: "notice.hearthwarmMax" };
     return null;
   }
   if (powerId === "briar") {
-    if (tile.isHearth) return "A hearth will not take the thorn.";
-    if (tile.terrain !== "meadow") return "Briar wants an open meadow.";
+    if (tile.isHearth) return { key: "notice.briarHearth" };
+    if (tile.terrain !== "meadow") return { key: "notice.briarMeadow" };
     return null;
   }
   if (powerId === "shore") {
-    if (tile.terrain !== "water") return "Shore wants open water.";
-    if (!besideLand(state, tile)) return "That water has no shore to climb.";
+    if (tile.terrain !== "water") return { key: "notice.shoreWater" };
+    if (!besideLand(state, tile)) return { key: "notice.shoreLand" };
     return null;
   }
   if (powerId === "tremor" || powerId === "cinder") {
@@ -348,27 +290,27 @@ function refuse(
     const meadow = spots.some((spot) => !spot.isHearth && spot.terrain === "meadow");
     if (powerId === "cinder") {
       const enemy = units.some((unit) => unit.kingdomId !== kingdom.id);
-      if (!enemy && !meadow) return "Cinder wants an enemy or an open meadow.";
+      if (!enemy && !meadow) return { key: "notice.cinderNeed" };
       return null;
     }
-    if (units.length === 0 && !meadow) return "Tremor wants marchers or an open meadow.";
+    if (units.length === 0 && !meadow) return { key: "notice.tremorNeed" };
     return null;
   }
   if (powerId === "cut") {
-    if (tile.isHearth) return "A hearth will not sink.";
-    if (tile.terrain !== "meadow") return "Cut wants an open meadow.";
+    if (tile.isHearth) return { key: "notice.cutHearth" };
+    if (tile.terrain !== "meadow") return { key: "notice.cutMeadow" };
     const unit = unitAt(state, x, y);
-    if (unit && !shoveTile(state, unit)) return "Someone is standing there with nowhere to step.";
+    if (unit && !shoveTile(state, unit)) return { key: "notice.cutStuck" };
     return null;
   }
   if (powerId === "drain") {
-    if (tile.terrain !== "water") return "Drain wants water.";
-    if (!besideOwnLand(state, kingdom.id, tile)) return "That water does not touch your land.";
+    if (tile.terrain !== "water") return { key: "notice.drainWater" };
+    if (!besideOwnLand(state, kingdom.id, tile)) return { key: "notice.drainLand" };
     return null;
   }
   const unit = unitAt(state, x, y);
-  if (!unit || unit.kingdomId === kingdom.id) return "Undertow wants an enemy marcher.";
-  if (onOwnHearth(state, unit)) return "A hearth holds its own against the pull.";
+  if (!unit || unit.kingdomId === kingdom.id) return { key: "notice.undertowEnemy" };
+  if (onOwnHearth(state, unit)) return { key: "notice.undertowHearth" };
   return null;
 }
 

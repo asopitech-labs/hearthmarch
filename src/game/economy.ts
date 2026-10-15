@@ -20,13 +20,12 @@ export function dailyYield(
   return { gold, population };
 }
 
-export function taxHint(rate: number): string {
+export type TaxBand = "gentle" | "measured" | "hard";
+
+/** Which sentence the tax card should show. The words live in the catalogs. */
+export function taxBand(rate: number): TaxBand {
   const tax = clampTax(rate);
-  if (tax <= 8) {
-    return "The villages keep almost everything. Spears come quickly, and the coffer stays thin.";
-  }
-  if (tax <= 18) {
-    return "A measured due. Gold arrives, and the villages still raise a few marchers.";
-  }
-  return "The coffer fattens. Few households can spare anyone for the march.";
+  if (tax <= 8) return "gentle";
+  if (tax <= 18) return "measured";
+  return "hard";
 }

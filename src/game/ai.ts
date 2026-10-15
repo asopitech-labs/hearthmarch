@@ -153,7 +153,7 @@ export function runAi(state: GameState, kingdomId: string): void {
   });
   if (nextTax !== kingdom.taxRate) {
     kingdom.taxRate = nextTax;
-    pushLog(state, `${kingdom.name} sets the tax to ${nextTax}%.`);
+    pushLog(state, "log.tax", { kingdom: kingdom.id, percent: nextTax });
   }
 
   if (kingdom.gold >= LEVY_COST && own.length < rivalUnits) {

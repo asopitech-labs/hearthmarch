@@ -14,7 +14,9 @@ import { castPower, godById, riteFootprint } from "../game/faith.ts";
 import { findPath } from "../game/path.ts";
 import { getTile, humanKingdom, territoryCount, unitAt, unitsOf } from "../game/query.ts";
 import { createSkirmish, tick } from "../game/sim.ts";
+import type { Notice } from "../game/speech.ts";
 import type { GameState, GodId, PowerId } from "../game/types.ts";
+import { formatLog } from "../i18n/format.ts";
 import { drawView, measureFrameTimes, resetViewCache, viewSurfaces, type DrawInput } from "../render/draw.ts";
 import { LAYOUT, tileAtPoint, tileCenter, worldSize } from "../render/layout.ts";
 import { mountHud } from "../ui/hud.ts";
@@ -32,7 +34,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   let speed = 1;
   let selectedIds: number[] = [];
   let hover: { x: number; y: number } | null = null;
-  let note = "";
+  let note: Notice | null = null;
   let noteUntil = 0;
   let choosingGod = true;
   let armedPower: PowerId | null = null;
@@ -72,7 +74,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
       speed = 1;
       selectedIds = [];
       hover = null;
-      note = "";
+      note = null;
       previews = [];
     },
     onChooseGod(godId: GodId) {
@@ -85,7 +87,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
       speed = 1;
       selectedIds = [];
       hover = null;
-      note = "";
+      note = null;
       previews = [];
       lookAtHearth("ashvale");
     },
@@ -93,7 +95,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
       if (choosingGod || state.status !== "playing") return;
       armedPower = armedPower === powerId ? null : powerId;
       if (armedPower) selectedIds = [];
-      note = "";
+      note = null;
       previews = [];
     },
   });
@@ -152,7 +154,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   board.graphics.use(surface, { anchor: vec(0, 0) });
   board.onPreUpdate = (_engine, elapsed) => {
     const now = performance.now();
-    if (note && now > noteUntil) note = "";
+    if (note && now > noteUntil) note = null;
     const dt = Math.min(FRAME_CAP_MS, elapsed);
     if (!choosingGod && !paused && state.status === "playing") tick(state, dt * speed);
     selectedIds = selectedIds.filter((id) => state.units.some((unit) => unit.id === id));
@@ -429,7 +431,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     const picked = unitsInWorldRect(state.units, human.id, a.x, a.y, b.x, b.y);
     selectedIds = shift ? unique([...selectedIds, ...picked]) : picked;
     armedPower = null;
-    note = "";
+    note = null;
   }
 
   function clickAt(local: { x: number; y: number }, event: PointerEvent): void {
@@ -449,7 +451,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
         return;
       }
       selectedIds = event.shiftKey ? toggleMember(selectedIds, intent.unitId) : [intent.unitId];
-      note = "";
+      note = null;
       return;
     }
     if (event.pointerType === "touch" && selectedIds.length > 0 && tile) {
@@ -462,20 +464,20 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
   function commandAt(local: { x: number; y: number }): void {
     if (armedPower) {
       armedPower = null;
-      note = "";
+      note = null;
       return;
     }
     const tile = tileUnder(local);
     const intent = interpretOrderClick(state, selectedIds, tile);
     if (intent.kind === "order") {
       const sent = orderUnits(state, selectedIds, intent.x, intent.y);
-      note = sent > 0 ? "" : "No path there.";
+      note = sent > 0 ? null : { key: "note.blocked" };
       if (note) noteUntil = performance.now() + 1700;
       previews = [];
       return;
     }
     if (intent.kind === "note") {
-      note = intent.text;
+      note = intent.notice;
       noteUntil = performance.now() + 1700;
     }
   }
@@ -485,11 +487,11 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     if (!human || !tile || !armedPower) return;
     const result = castPower(state, human.id, armedPower, tile.x, tile.y);
     if (result.ok) {
-      note = "";
+      note = null;
       armedPower = null;
       return;
     }
-    note = result.reason;
+    note = result.notice;
     noteUntil = performance.now() + 1700;
   }
 
@@ -498,7 +500,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     if (!human) return;
     const rect = visibleWorldRect(camera);
     selectedIds = unitsInWorldRect(state.units, human.id, rect.left, rect.top, rect.right, rect.bottom);
-    note = "";
+    note = null;
   }
 
   function contactSpan(): number {
@@ -614,7 +616,7 @@ export async function startBoard(map: HTMLCanvasElement): Promise<void> {
     if (!power) return;
     armedPower = armedPower === power.id ? null : power.id;
     if (armedPower) selectedIds = [];
-    note = "";
+    note = null;
     previews = [];
   }
 }
@@ -630,7 +632,7 @@ function snapshot(state: GameState) {
     clockMs: state.clockMs,
     dayMs: DAY_MS,
     winnerId: state.winnerId,
-    log: [...state.log],
+    log: state.log.map((entry) => formatLog(entry)),
     kingdoms: state.kingdoms.map((kingdom) => ({
       id: kingdom.id,
       name: kingdom.name,

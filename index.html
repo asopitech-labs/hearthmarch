@@ -9,38 +9,65 @@
       content="Hearthmarch is a hand-drawn strategy game. Set the tax, march your people, and take the rival hearth."
     />
     <title>Hearthmarch</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("hearthmarch.locale");
+          var lang = stored;
+          if (lang !== "ja" && lang !== "en") {
+            var list = navigator.languages || [navigator.language || "en"];
+            lang = "en";
+            for (var i = 0; i < list.length; i++) {
+              if (String(list[i]).toLowerCase().indexOf("ja") === 0) {
+                lang = "ja";
+                break;
+              }
+            }
+          }
+          document.documentElement.lang = lang;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
-    <div class="sheet">
+    <div class="sheet i18n-hold">
       <header class="mast">
         <div>
-          <p class="eyebrow">Two hearths, one marsh</p>
-          <h1>Hearthmarch</h1>
-          <p class="lede">
+          <p class="eyebrow" data-i18n="eyebrow">Two hearths, one marsh</p>
+          <h1 data-i18n="title">Hearthmarch</h1>
+          <p class="lede" data-i18n="lede">
             Set the tax, send your marchers, and take the rival hearth before yours goes quiet.
           </p>
         </div>
         <div class="mast-actions">
-          <button id="pause" type="button" aria-pressed="false">Pause</button>
+          <button id="pause" type="button" aria-pressed="false" data-i18n="pause">Pause</button>
           <button id="speed" type="button">Pace 1×</button>
-          <button id="restart" type="button">Start over</button>
+          <button id="restart" type="button" data-i18n="restart">Start over</button>
+          <button id="lang" type="button" data-i18n="lang.switch" data-i18n-aria="lang.aria">日本語</button>
         </div>
       </header>
 
-      <p class="swipe-hint">Drag the marsh to look around. Pinch, or use the buttons, to zoom.</p>
+      <p class="swipe-hint" data-i18n="swipe">Drag the marsh to look around. Pinch, or use the buttons, to zoom.</p>
       <div class="stage">
         <div class="map-scroll">
           <div class="map-frame">
             <canvas
               id="map"
+              data-i18n-aria="map.aria"
               aria-label="Reed Marsh. Apricot ground is yours, teal ground is Reedmoor's. Drag to look around. Left-click selects marchers. Right-click sends them."
             ></canvas>
             <div class="map-tools">
-              <canvas id="minimap" width="168" height="108" aria-label="Minimap of Reed Marsh. Click to look there."></canvas>
+              <canvas
+                id="minimap"
+                width="168"
+                height="108"
+                data-i18n-aria="minimap.aria"
+                aria-label="Minimap of Reed Marsh. Click to look there."
+              ></canvas>
               <div class="zoom-tools">
-                <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
-                <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
-                <button id="select-all" type="button">All</button>
+                <button id="zoom-in" type="button" data-i18n-aria="zoom.in" aria-label="Zoom in">+</button>
+                <button id="zoom-out" type="button" data-i18n-aria="zoom.out" aria-label="Zoom out">−</button>
+                <button id="select-all" type="button" data-i18n="select.all">All</button>
               </div>
             </div>
           </div>
@@ -49,7 +76,7 @@
           <div class="curtain-card">
             <h2 id="curtain-title"></h2>
             <p id="curtain-copy"></p>
-            <button id="curtain-restart" type="button">March again</button>
+            <button id="curtain-restart" type="button" data-i18n="curtain.again">March again</button>
           </div>
         </div>
       </div>
@@ -58,26 +85,28 @@
         <article class="card" id="player-card">
           <h2 class="card-title">
             <span class="swatch" id="player-swatch"></span>
-            <span id="player-name">Ashvale</span>
+            <span id="player-name" data-i18n="kingdom.ashvale">Ashvale</span>
           </h2>
-          <p class="role">Your kingdom</p>
+          <p class="role" data-i18n="role.you">Your kingdom</p>
           <dl class="stats">
-            <div><dt>Gold</dt><dd data-field="player-gold">0</dd></div>
-            <div><dt>Villagers</dt><dd data-field="player-pop">0</dd></div>
-            <div><dt>Tiles</dt><dd data-field="player-tiles">0</dd></div>
-            <div><dt>Marchers</dt><dd data-field="player-units">0</dd></div>
-            <div><dt>Faith</dt><dd data-field="player-faith">0</dd></div>
+            <div><dt data-i18n="stat.gold">Gold</dt><dd data-field="player-gold">0</dd></div>
+            <div><dt data-i18n="stat.villagers">Villagers</dt><dd data-field="player-pop">0</dd></div>
+            <div><dt data-i18n="stat.tiles">Tiles</dt><dd data-field="player-tiles">0</dd></div>
+            <div><dt data-i18n="stat.marchers">Marchers</dt><dd data-field="player-units">0</dd></div>
+            <div><dt data-i18n="stat.faith">Faith</dt><dd data-field="player-faith">0</dd></div>
           </dl>
-          <p id="player-selected" class="selection">Click one of your marchers, then click the ground you want held.</p>
+          <p id="player-selected" class="selection" data-i18n="select.none">
+            Left-click a marcher, or drag a box around several. Right-click to send them.
+          </p>
         </article>
 
         <article class="card" id="tax-card">
           <div class="tax-head">
-            <h2>Tax</h2>
+            <h2 data-i18n="tax.title">Tax</h2>
             <p class="dawn" id="day-label">Day 1</p>
           </div>
           <div class="dawn-track" aria-hidden="true"><div id="dawn-fill"></div></div>
-          <label for="tax">Rate <strong id="tax-readout">10%</strong></label>
+          <label for="tax"><span data-i18n="tax.rate">Rate</span> <strong id="tax-readout">10%</strong></label>
           <input
             id="tax"
             type="range"
@@ -87,13 +116,16 @@
             value="10"
             aria-describedby="tax-hint forecast"
           />
-          <div class="scale"><span>0% villages</span><span>30% coffer</span></div>
+          <div class="scale">
+            <span data-i18n="tax.villagesEnd">0% villages</span>
+            <span data-i18n="tax.cofferEnd">30% coffer</span>
+          </div>
           <p id="tax-hint"></p>
           <p id="forecast" class="forecast"></p>
-          <h3 class="rites-title">Rites</h3>
+          <h3 class="rites-title" data-i18n="rites.title">Rites</h3>
           <div id="rites" class="rites"></div>
           <button id="levy" type="button">Call a levy (90 gold)</button>
-          <p class="fine">
+          <p class="fine" data-i18n="levy.fine">
             A levy spends gold at once. Villages muster on their own when the tax is gentle and the
             population is full. Muster line: 56 villagers.
           </p>
@@ -103,11 +135,11 @@
       </section>
 
       <section class="card log-card">
-        <h2>Field notes</h2>
+        <h2 data-i18n="log.title">Field notes</h2>
         <ol id="log" aria-live="polite"></ol>
       </section>
 
-      <p class="help">
+      <p class="help" data-i18n="help">
         Water is impassable. Woods slow a march. Standing on a tile claims it. A hearth shelters its
         own people, so a fight on the cottage is harder than a fight in the open. Leave your hearth
         empty and Reedmoor will walk in. Faith comes from the villages, and a hard tax stills it.
@@ -120,16 +152,16 @@
       </p>
       <p id="status-live" class="sr-only" aria-live="polite">Playing</p>
     </div>
-    <div id="god-gate" class="god-gate">
+    <div id="god-gate" class="god-gate i18n-hold">
       <div class="curtain-card god-panel">
-        <h2>Whose prayers does Ashvale keep?</h2>
-        <p id="god-lede">
+        <h2 data-i18n="god.gate.title">Whose prayers does Ashvale keep?</h2>
+        <p id="god-lede" data-i18n="god.gate.lede">
           The god you keep decides which rites your faith can buy. Reedmoor keeps a different one.
         </p>
         <div id="god-choices" class="god-choices"></div>
       </div>
     </div>
-    <noscript><p class="sheet">Hearthmarch needs JavaScript to march.</p></noscript>
+    <noscript><p class="sheet">Hearthmarch needs JavaScript to march. 炉辺行は、JavaScriptがないと進めません。</p></noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

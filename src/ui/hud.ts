@@ -1,15 +1,18 @@
 import { DAY_MS, LEVY_COST, TAX_MAX } from "../game/config.ts";
 import { canLevy, levy, setTax } from "../game/commands.ts";
-import { dailyYield, taxHint } from "../game/economy.ts";
-import { faithGain, godById, GODS, powerById } from "../game/faith.ts";
+import { dailyYield, taxBand } from "../game/economy.ts";
+import { faithGain, godById, GODS } from "../game/faith.ts";
 import { getTile, humanKingdom, rivalKingdoms, territoryCount, unitsOf } from "../game/query.ts";
+import type { Notice, PlaceKey } from "../game/speech.ts";
 import type { GameState, GodId, Kingdom, PowerId, Unit } from "../game/types.ts";
+import { formatLog, formatNotice, godText, kingdomText, powerText } from "../i18n/format.ts";
+import { getLocale, t } from "../i18n/locale.ts";
 
 export interface HudView {
   paused: boolean;
   speed: number;
   selectedIds: number[];
-  note: string;
+  note: Notice | null;
   armedPower: PowerId | null;
   choosingGod: boolean;
 }
@@ -22,22 +25,36 @@ export interface HudHandlers {
   onRite: (powerId: PowerId) => void;
 }
 
+const LIVE = [
+  "#pause",
+  "#speed",
+  "#day-label",
+  "#levy",
+  "#player-selected",
+  "#status-live",
+  "#player-name",
+  "#tax-hint",
+  "#forecast",
+  "#curtain-title",
+  "#curtain-copy",
+];
+
 function requireElement<T extends Element>(selector: string): T {
   const element = document.querySelector(selector);
   if (!element) throw new Error(`Missing ${selector}`);
   return element as T;
 }
 
-function placePhrase(state: GameState, unit: Unit, humanId: string): string {
+function placePhrase(state: GameState, unit: Unit, humanId: string): PlaceKey {
   const tile = getTile(state, unit.x, unit.y);
-  if (!tile) return "somewhere in the marsh";
+  if (!tile) return "place.somewhere";
   if (tile.isHearth) {
-    return tile.ownerId === unit.kingdomId ? "on your hearth" : "on a foreign hearth";
+    return tile.ownerId === unit.kingdomId ? "place.ownHearth" : "place.foreignHearth";
   }
-  if (tile.terrain === "wood") return "in the trees";
-  if (tile.ownerId === null) return "on open marsh";
-  if (tile.ownerId === humanId) return "on your ground";
-  return "on enemy ground";
+  if (tile.terrain === "wood") return "place.wood";
+  if (tile.ownerId === null) return "place.open";
+  if (tile.ownerId === humanId) return "place.own";
+  return "place.enemy";
 }
 
 function fillKingdomStats(
@@ -60,6 +77,20 @@ function fillKingdomStats(
   if (faith) faith.textContent = String(Math.floor(kingdom.faith));
 }
 
+function fillGodButton(button: HTMLButtonElement, id: GodId): void {
+  button.replaceChildren();
+  const name = document.createElement("span");
+  name.className = "god-name";
+  name.textContent = godText(id, "name");
+  const title = document.createElement("span");
+  title.className = "god-title";
+  title.textContent = godText(id, "title");
+  const creed = document.createElement("span");
+  creed.className = "god-creed";
+  creed.textContent = godText(id, "creed");
+  button.append(name, title, creed);
+}
+
 export function mountHud(handlers: HudHandlers): {
   update: (state: GameState, view: HudView) => void;
 } {
@@ -79,12 +110,12 @@ export function mountHud(handlers: HudHandlers): {
     button.type = "button";
     button.className = "god-choice";
     button.dataset.god = god.id;
-    button.innerHTML = `<span class="god-name">${god.name}</span><span class="god-title">${god.title}</span><span class="god-creed">${god.creed}</span>`;
     button.addEventListener("click", () => handlers.onChooseGod(god.id));
     godChoices.append(button);
   }
 
   let currentState = (): GameState | null => null;
+  let godLocale = "";
 
   pauseButton.addEventListener("click", handlers.onPause);
   speedButton.addEventListener("click", handlers.onSpeed);
@@ -108,9 +139,19 @@ export function mountHud(handlers: HudHandlers): {
     levy(state, human.id);
   });
 
+  function syncGods(): void {
+    const locale = getLocale();
+    if (godLocale === locale) return;
+    godLocale = locale;
+    for (const button of godChoices.querySelectorAll<HTMLButtonElement>(".god-choice")) {
+      const id = button.dataset.god;
+      if (id === "lark" || id === "kiln" || id === "mere") fillGodButton(button, id);
+    }
+  }
+
   function syncRivals(state: GameState): void {
     const cpus = rivalKingdoms(state);
-    const stamp = cpus.map((kingdom) => kingdom.id).join("|");
+    const stamp = `${getLocale()}|${cpus.map((kingdom) => kingdom.id).join("|")}`;
     if (rivals.dataset.stamp !== stamp) {
       rivals.dataset.stamp = stamp;
       rivals.replaceChildren();
@@ -118,19 +159,38 @@ export function mountHud(handlers: HudHandlers): {
         const card = document.createElement("article");
         card.className = "card";
         card.dataset.kingdom = kingdom.id;
-        card.innerHTML = `
-          <h2 class="card-title"><span class="swatch"></span><span data-field="name"></span></h2>
-          <p class="role">Computer kingdom</p>
-          <dl class="stats">
-            <div><dt>Tax</dt><dd data-field="rival-tax"></dd></div>
-            <div><dt>Gold</dt><dd data-field="rival-gold"></dd></div>
-            <div><dt>Villagers</dt><dd data-field="rival-pop"></dd></div>
-            <div><dt>Tiles</dt><dd data-field="rival-tiles"></dd></div>
-            <div><dt>Marchers</dt><dd data-field="rival-units"></dd></div>
-            <div><dt>Faith</dt><dd data-field="rival-faith"></dd></div>
-          </dl>
-          <p class="fine" data-field="fate"></p>
-        `;
+        const title = document.createElement("h2");
+        title.className = "card-title";
+        const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        const name = document.createElement("span");
+        name.dataset.field = "name";
+        title.append(swatch, name);
+        const role = document.createElement("p");
+        role.className = "role";
+        role.textContent = t("role.cpu");
+        const stats = document.createElement("dl");
+        stats.className = "stats";
+        for (const [key, field] of [
+          ["stat.tax", "rival-tax"],
+          ["stat.gold", "rival-gold"],
+          ["stat.villagers", "rival-pop"],
+          ["stat.tiles", "rival-tiles"],
+          ["stat.marchers", "rival-units"],
+          ["stat.faith", "rival-faith"],
+        ] as const) {
+          const row = document.createElement("div");
+          const term = document.createElement("dt");
+          term.textContent = t(key);
+          const value = document.createElement("dd");
+          value.dataset.field = field;
+          row.append(term, value);
+          stats.append(row);
+        }
+        const fate = document.createElement("p");
+        fate.className = "fine";
+        fate.dataset.field = "fate";
+        card.append(title, role, stats, fate);
         rivals.append(card);
       }
     }
@@ -142,21 +202,23 @@ export function mountHud(handlers: HudHandlers): {
       const swatch = card.querySelector(".swatch");
       if (swatch instanceof HTMLElement) swatch.style.background = kingdom.ink;
       const name = card.querySelector("[data-field='name']");
-      if (name) name.textContent = kingdom.name;
+      if (name) name.textContent = kingdomText(kingdom.id);
       fillKingdomStats(card, kingdom, state, "rival");
       const fate = card.querySelector("[data-field='fate']");
       if (fate) {
-        const god = godById(kingdom.godId);
         fate.textContent = kingdom.alive
-          ? `They keep ${god.name}, ${god.title}. They set their own tax and call their own rites.`
-          : "Their hearth has fallen.";
+          ? t("rival.fate", {
+              god: godText(kingdom.godId, "name"),
+              title: godText(kingdom.godId, "title"),
+            })
+          : t("rival.fallen");
       }
     }
   }
 
   function syncRites(state: GameState, human: Kingdom, armed: PowerId | null): void {
     const god = godById(human.godId);
-    const stamp = god.id;
+    const stamp = `${getLocale()}|${god.id}`;
     if (rites.dataset.stamp !== stamp) {
       rites.dataset.stamp = stamp;
       rites.replaceChildren();
@@ -174,76 +236,93 @@ export function mountHud(handlers: HudHandlers): {
       if (!button) return;
       const wait = human.riteWait[power.id] ?? 0;
       const cooling = wait > 0;
+      const name = powerText(power.id, "name");
       const label = cooling
-        ? `${power.name} · ${Math.ceil(wait / 1000)}s`
-        : `${power.name} · ${power.cost}`;
+        ? t("rite.wait", { name, seconds: Math.ceil(wait / 1000) })
+        : t("rite.ready", { name, cost: power.cost });
       if (button.textContent !== label) button.textContent = label;
       button.disabled =
         state.status !== "playing" || !human.alive || cooling || human.faith < power.cost;
       button.setAttribute("aria-pressed", armed === power.id ? "true" : "false");
-      button.title = `${power.blurb} Key ${index + 1}.`;
+      button.title = t("rite.hint", { blurb: powerText(power.id, "blurb"), key: index + 1 });
     });
   }
 
   return {
     update(state: GameState, view: HudView) {
       currentState = () => state;
+      for (const selector of LIVE) {
+        const el = document.querySelector<HTMLElement>(selector);
+        if (el) el.dataset.live = "1";
+      }
+      syncGods();
       const human = humanKingdom(state);
       const playerCard = requireElement<HTMLElement>("#player-card");
       if (human) {
         playerCard.classList.toggle("fallen", !human.alive);
         const swatch = requireElement<HTMLElement>("#player-swatch");
         swatch.style.background = human.ink;
-        requireElement("#player-name").textContent = human.name;
+        requireElement("#player-name").textContent = kingdomText(human.id);
         fillKingdomStats(playerCard, human, state, "player");
         const selected = state.units.filter((unit) => view.selectedIds.includes(unit.id));
         const selectedLine = requireElement("#player-selected");
         if (!human.alive) {
-          selectedLine.textContent = "The hearth is lost.";
+          selectedLine.textContent = t("select.lost");
         } else if (view.note) {
-          selectedLine.textContent = view.note;
+          selectedLine.textContent = formatNotice(view.note);
         } else if (unitsOf(state, human.id).length === 0 && state.status === "playing") {
-          selectedLine.textContent = "No marchers in the field. Lower the tax, or call a levy, before the hearth stands empty.";
+          selectedLine.textContent = t("select.empty");
         } else if (view.armedPower) {
-          const power = powerById(view.armedPower);
-          selectedLine.textContent = `${power.name} is ready. ${power.blurb} Click the marsh.`;
+          selectedLine.textContent = t("select.armed", {
+            power: powerText(view.armedPower, "name"),
+            blurb: powerText(view.armedPower, "blurb"),
+          });
         } else if (selected.length > 1) {
-          selectedLine.textContent = `${selected.length} marchers. Right-click the ground to send them together.`;
+          selectedLine.textContent = t("select.many", { count: selected.length });
         } else if (selected.length === 1) {
           const unit = selected[0]!;
-          selectedLine.textContent = `Strength ${unit.strength}, ${placePhrase(state, unit, human.id)}. Right-click a tile to send them.`;
+          selectedLine.textContent = t("select.one", {
+            strength: unit.strength,
+            place: t(placePhrase(state, unit, human.id)),
+          });
         } else {
-          selectedLine.textContent = "Left-click a marcher, or drag a box around several. Right-click to send them.";
+          selectedLine.textContent = t("select.none");
         }
 
         const tiles = territoryCount(state, human.id);
         const gained = dailyYield(tiles, human.taxRate);
         const prayers = faithGain(human.population, human.taxRate);
         requireElement("#tax-readout").textContent = `${human.taxRate}%`;
-        requireElement("#tax-hint").textContent = taxHint(human.taxRate);
+        const band = taxBand(human.taxRate);
+        const hintKey = band === "gentle" ? "tax.gentle" : band === "measured" ? "tax.measured" : "tax.hard";
+        requireElement("#tax-hint").textContent = t(hintKey);
         requireElement("#forecast").textContent =
           tiles === 0
-            ? "No ground, no dues."
-            : `Each dawn: about +${gained.gold} gold, +${gained.population.toFixed(1)} villagers, and +${prayers} faith.`;
+            ? t("forecast.empty")
+            : t("forecast", {
+                gold: gained.gold,
+                villagers: gained.population.toFixed(1),
+                faith: prayers,
+              });
         syncRites(state, human, view.armedPower);
         if (document.activeElement !== taxInput) taxInput.value = String(human.taxRate);
         taxInput.disabled = state.status !== "playing" || !human.alive;
         levyButton.disabled = !canLevy(state, human.id);
-        const levyLabel = `Call a levy (${LEVY_COST} gold)`;
+        const levyLabel = t("levy.button", { cost: LEVY_COST });
         if (levyButton.textContent !== levyLabel) levyButton.textContent = levyLabel;
       }
 
       syncRivals(state);
 
-      requireElement("#day-label").textContent = `Day ${state.day}`;
+      requireElement("#day-label").textContent = t("day.label", { day: state.day });
       const fill = requireElement<HTMLElement>("#dawn-fill");
       const progress = state.status === "playing" ? Math.min(1, state.clockMs / DAY_MS) : 1;
       fill.style.width = `${Math.round(progress * 100)}%`;
 
-      pauseButton.textContent = view.paused ? "Resume" : "Pause";
+      pauseButton.textContent = view.paused ? t("resume") : t("pause");
       pauseButton.setAttribute("aria-pressed", view.paused ? "true" : "false");
       pauseButton.disabled = state.status !== "playing";
-      speedButton.textContent = `Pace ${view.speed}×`;
+      speedButton.textContent = t("pace", { speed: view.speed });
       speedButton.disabled = state.status !== "playing";
 
       const curtain = requireElement<HTMLElement>("#curtain");
@@ -253,30 +332,33 @@ export function mountHud(handlers: HudHandlers): {
       godGate.hidden = !view.choosingGod;
       if (view.choosingGod) {
         curtain.hidden = true;
-        statusLive.textContent = "Choose a god";
+        statusLive.textContent = t("status.choose");
       } else if (state.status === "playing") {
         curtain.hidden = true;
-        statusLive.textContent = view.paused ? "Paused" : "Playing";
+        statusLive.textContent = view.paused ? t("status.paused") : t("status.playing");
       } else if (state.status === "won") {
         curtain.hidden = false;
-        const name = human?.name ?? "Your kingdom";
-        curtainTitle.textContent = "The reed banners come down";
-        curtainCopy.textContent = `${name} holds the marsh. The rival hearth is yours, and so is what was left in their coffer.`;
-        statusLive.textContent = "Victory";
+        const name = human ? kingdomText(human.id) : t("kingdom.you");
+        curtainTitle.textContent = t("banner.win.title");
+        curtainCopy.textContent = t("banner.win.copy", { name });
+        statusLive.textContent = t("status.victory");
       } else {
         curtain.hidden = false;
         const rival = rivalKingdoms(state).find((kingdom) => kingdom.alive) ?? rivalKingdoms(state)[0];
-        curtainTitle.textContent = "Your hearth goes quiet";
-        curtainCopy.textContent = `${rival?.name ?? "The rival"} keeps the marsh. The villages will pay a different lord in the morning.`;
-        statusLive.textContent = "Defeat";
+        curtainTitle.textContent = t("banner.loss.title");
+        curtainCopy.textContent = t("banner.loss.copy", {
+          name: rival ? kingdomText(rival.id) : t("kingdom.rival"),
+        });
+        statusLive.textContent = t("status.defeat");
       }
 
       const log = requireElement<HTMLOListElement>("#log");
-      const signature = state.log.join("\n");
+      const lines = state.log.map((entry) => formatLog(entry));
+      const signature = `${getLocale()}\n${lines.join("\n")}`;
       if (log.dataset.signature !== signature) {
         log.dataset.signature = signature;
         log.replaceChildren();
-        for (const line of state.log) {
+        for (const line of lines) {
           const item = document.createElement("li");
           item.textContent = line;
           log.append(item);

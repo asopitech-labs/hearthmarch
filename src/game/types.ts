@@ -1,3 +1,5 @@
+import type { LogEntry } from "./speech.ts";
+
 export type Terrain = "meadow" | "wood" | "water";
 
 export type GodId = "lark" | "kiln" | "mere";
@@ -82,7 +84,7 @@ export interface GameState {
   clockMs: number;
   status: GameStatus;
   winnerId: string | null;
-  log: string[];
+  log: LogEntry[];
   flashes: Flash[];
   nextSeq: number;
 }
