@@ -31,6 +31,8 @@ input {
 }
 
 .mast {
+  position: relative;
+  z-index: 7;
   display: flex;
   justify-content: space-between;
   gap: 18px;
@@ -538,7 +540,7 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
-html:not([data-i18n="ready"]) .i18n-hold {
+html:not([data-ready="1"]) .i18n-hold {
   visibility: hidden;
 }
 

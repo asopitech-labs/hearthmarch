@@ -1,8 +1,9 @@
 import { LEVY_COST } from "../game/config.ts";
-import type { MessageKey } from "./en.ts";
+import { en, type MessageKey } from "./en.ts";
 import { getLocale, onLocale, setLocale, t, type LocaleId } from "./locale.ts";
 
-function paint(key: string): string {
+function paint(key: string): string | null {
+  if (!Object.prototype.hasOwnProperty.call(en, key)) return null;
   return t(key as MessageKey);
 }
 
@@ -17,11 +18,13 @@ export function applyDocument(): void {
   for (const el of document.querySelectorAll<HTMLElement>("[data-i18n]")) {
     if (el.dataset.live === "1") continue;
     const key = el.dataset.i18n;
-    if (key) el.textContent = paint(key);
+    const text = key ? paint(key) : null;
+    if (text !== null) el.textContent = text;
   }
   for (const el of document.querySelectorAll<HTMLElement>("[data-i18n-aria]")) {
     const key = el.dataset.i18nAria;
-    if (key) el.setAttribute("aria-label", paint(key));
+    const label = key ? paint(key) : null;
+    if (label !== null) el.setAttribute("aria-label", label);
   }
 
   const day = document.querySelector<HTMLElement>("#day-label");
@@ -33,7 +36,7 @@ export function applyDocument(): void {
   const status = document.querySelector<HTMLElement>("#status-live");
   if (status && status.dataset.live !== "1") status.textContent = t("status.choose");
 
-  document.documentElement.dataset.i18n = "ready";
+  document.documentElement.dataset.ready = "1";
 }
 
 export function mountLocale(): void {
