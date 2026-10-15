@@ -57,4 +57,4 @@ In the browser console, `window.__hearthmarch.getState()` returns a plain snapsh
 
 ## License
 
-Hearthmarch is released under the [MIT License](LICENSE). Copyright 2026 asopitech-labs.
+Hearthmarch is released under the [MIT License](LICENSE). Copyright 2026 Asopitech.
